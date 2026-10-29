@@ -22,6 +22,9 @@ static RenderRig *rig(double rate) {
  atomic_store(&r->masterVolume,1);[r clearVoices];return r;
 }
 static void destroyRig(RenderRig *r) {
+#ifdef SYNTH_HOST_HAS_EVENT_POLL
+ [r cancelSequencePoll];
+#endif
  synth_effects_destroy(&r->effects);free(r->sequence);r->sequence=NULL;
  free(r->lookaheadL);free(r->lookaheadR);free(r->lookaheadPeaks);free(r->lookaheadPeakIndices);
 }

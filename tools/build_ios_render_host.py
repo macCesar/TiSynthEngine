@@ -21,15 +21,18 @@ METHODS = ["clearVoices", "updatePanGainsForVoice", "findTailSlot",
            "applyHeldCommand", "sequenceGateEnded", "renderSequenceFrame",
            "pruneVoiceMetadata", "publishSequence", "maxFrequencyHz",
            "acceptValidation", "warnOnceMethod", "voiceMaskForId", "updateVoice"]
+EVENT_METHODS = ["scheduleSequencePoll", "cancelSequencePoll", "drainSequenceEvents"]
 
 
 def extract(source):
     prefix = source[source.index("#define DEFAULT_SAMPLE_RATE"):source.index("@interface TiSynthengineModule ()")]
     ivars = source.split("@interface TiSynthengineModule () {", 1)[1].split("\n}\n@end", 1)[0]
     methods = []
-    for name in METHODS:
+    for name in METHODS + EVENT_METHODS:
         match = re.search(r"^- \([^\n]+\)" + name + r"(?=[:\s])", source, re.M)
         if not match:
+            if name in EVENT_METHODS:
+                continue
             raise ValueError("Missing production method: " + name)
         opening = source.index("{", match.start())
         # Selected methods contain balanced braces, no braces in string literals.
@@ -53,6 +56,7 @@ def main():
     source_root = args.source.resolve()
     source_path = source_root / "ios/Classes/TiSynthengineModule.m"
     prefix, ivars, methods, block = extract(source_path.read_text())
+    has_event_poll = any("scheduleSequencePoll" in m.split("{", 1)[0] for m in methods)
     imports = '''#import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <mach/mach_time.h>
@@ -79,6 +83,10 @@ static uint64_t synth_host_seed_clock(void) { return 1; }
         imports += '#include "' + str(source_root / "shared" / (header + ".h")) + '"\n'
     imports += '#import "' + str(source_root / "ios/Classes/TiSynthengineContract.h") + '"\n'
     declarations = "\n".join(m[:m.index("{")].strip() + ";" for m in methods)
+    if has_event_poll:
+        imports += "#define SYNTH_HOST_HAS_EVENT_POLL 1\n"
+        declarations += "\n- (void)fireEvent:(NSString *)name withObject:(NSDictionary *)event;"
+        methods.append("- (void)fireEvent:(NSString *)name withObject:(NSDictionary *)event { (void)name; (void)event; }")
     generated = (imports + prefix + "\n@interface RenderRig : NSObject { @public\n" + ivars +
                  "\n}\n" + declarations + "\n- (OSStatus)render:(AVAudioFrameCount)frameCount output:(AudioBufferList *)outputData;\n@end\n" +
                  "@implementation RenderRig\n" + "\n".join(methods) +

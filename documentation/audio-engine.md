@@ -156,6 +156,10 @@ The renderer mixes in the data callback and targets a small device buffer. A rou
 
 iOS renders with `AVAudioEngine` and `AVAudioSourceNode`, using the active session's sample rate. The module configures the audio session as `Playback`, or `Ambient` when `start()` receives `audioSession: 'ambient'`, activates it, and observes route and engine configuration notifications. If a route change stops the graph, the port reapplies the category, reactivates the session and resumes the existing renderer.
 
+The main-queue event timer runs every 10 ms only while accepted sequences or held-voice metadata need retirement. It stops after the last pending item is retired and starts again on an accepted sequence or held note. This timer delivers notifications and cleans control metadata; it does not generate audio or schedule musical attacks. A shutdown or restart invalidates callbacks from the previous timer.
+
+Run `python3 tests/run_sequence_events_ios.py` on macOS to check idle polling, sequence acceptance and retirement, held metadata cleanup, and shutdown/restart from an event listener against the production methods with real dispatch timers and the shared transport. The harness replaces the audio device and Titanium event sink, so it does not establish device listening acceptance.
+
 The module targets iOS 15 or newer. The module archive contains device, simulator and Mac Catalyst slices.
 
 ## Latency

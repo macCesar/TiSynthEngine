@@ -606,6 +606,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   _Atomic(double) masterVolume;
 
   dispatch_source_t sequenceEventTimer;
+  uint64_t sequenceEventGeneration;
   uint32_t nextSequenceId;
 
   NSMutableSet *warningKeys;
@@ -1398,10 +1399,6 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     return @NO;
   }
   synth_transport_init(sequence,engineSampleRate,options[@"maxSequences"]?[options[@"maxSequences"] intValue]:1);sequenceOptions=[NSMutableDictionary dictionary];sequenceVoiceId=0;
-  sequenceEventTimer=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_get_main_queue());
-  dispatch_source_set_timer(sequenceEventTimer,DISPATCH_TIME_NOW,10*NSEC_PER_MSEC,NSEC_PER_MSEC);
-  __weak TiSynthengineModule *eventOwner=self;
-  dispatch_source_set_event_handler(sequenceEventTimer,^{[eventOwner drainSequenceEvents];});dispatch_resume(sequenceEventTimer);
   processingOptions=synth_effects_default_config();
   synth_stats_init(&stats);
   synth_stats_enable(&stats,statsEnabled);
@@ -1856,14 +1853,41 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   for(NSNumber *identifier in [voiceGenerations allKeys])if(![retained containsObject:identifier]){[voiceGenerations removeObjectForKey:identifier];[voicePositions removeObjectForKey:identifier];[voiceSpatialModes removeObjectForKey:identifier];}
 }
 
+- (void)cancelSequencePoll
+{
+  ++sequenceEventGeneration;
+  if(sequenceEventTimer){dispatch_source_cancel(sequenceEventTimer);sequenceEventTimer=nil;}
+}
+
+- (void)scheduleSequencePoll
+{
+  // Held voices also need metadata retirement. Stop waking the main queue
+  // once both the sequence-event and held-metadata work have drained.
+  if(sequenceEventTimer||!sequence||(!sequenceOptions.count&&!voiceGenerations.count))return;
+  uint64_t generation=++sequenceEventGeneration;
+  sequenceEventTimer=dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_get_main_queue());
+  dispatch_source_set_timer(sequenceEventTimer,dispatch_time(DISPATCH_TIME_NOW,10*NSEC_PER_MSEC),10*NSEC_PER_MSEC,NSEC_PER_MSEC);
+  __weak __typeof__(self) eventOwner=self;
+  dispatch_source_set_event_handler(sequenceEventTimer,^{
+    __typeof__(self) owner=eventOwner;
+    @synchronized(owner) {
+      if(owner&&owner->sequenceEventGeneration==generation)[owner drainSequenceEvents];
+    }
+  });
+  dispatch_resume(sequenceEventTimer);
+}
+
 - (void)drainSequenceEvents
 {
  @synchronized(self) {if(!sequence)return;
+  uint64_t generation=sequenceEventGeneration;
   [self pruneVoiceMetadata];
-  SynthSequenceEnd end;while(synth_transport_pop_end(sequence,&end)) {
+  SynthSequenceEnd end;while(sequence&&generation==sequenceEventGeneration&&synth_transport_pop_end(sequence,&end)) {
   [sequenceOptions removeObjectForKey:@(end.sequenceId)];
   [self fireEvent:@"sequenceend" withObject:@{@"sequenceId":@(end.sequenceId),@"reason":end.reason==SYNTH_SEQUENCE_COMPLETED?@"completed":@"stopped"}];
- }}
+  }
+  if(generation==sequenceEventGeneration&&!sequenceOptions.count&&!voiceGenerations.count)[self cancelSequencePoll];
+ }
 }
 - (NSNumber *)setTempo:(id)args
 {
@@ -1897,6 +1921,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   if(failure){synth_transport_cancel_write(sequence,bank);[self acceptValidation:failure method:restart?@"playSequence":@"updateSequence"];return restart?@0:@NO;}
   if(!synth_transport_commit_prepared(sequence,bank,restart)){__atomic_fetch_add(&statsRejected[2],1,__ATOMIC_RELAXED);__atomic_fetch_add(&rejectedPublications,1,__ATOMIC_RELAXED);return restart?@0:@NO;}
   sequenceOptions[@(identifier)]=merged;if(restart)nextSequenceId=identifier;
+  [self scheduleSequencePoll];
   return restart?@(identifier):@YES;
  }
 }
@@ -2144,7 +2169,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
 
   if(voiceId){if(![self heldPriorityAllows:voiceId priority:cmd.priority]){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);return @YES;}cmd.voiceGeneration=++nextVoiceGeneration;}
   BOOL dropped = [self enqueueCommand:cmd];
-  if(!dropped&&voiceId){voiceGenerations[@(voiceId)]=@(cmd.voiceGeneration);voiceSpatialModes[@(voiceId)]=@(cmd.spatial);voicePositions[@(voiceId)]=@[@(cmd.spatialX),@(cmd.spatialY)];if(voiceGenerations.count>256)[self pruneVoiceMetadata];}
+  if(!dropped&&voiceId){voiceGenerations[@(voiceId)]=@(cmd.voiceGeneration);voiceSpatialModes[@(voiceId)]=@(cmd.spatial);voicePositions[@(voiceId)]=@[@(cmd.spatialX),@(cmd.spatialY)];if(voiceGenerations.count>256)[self pruneVoiceMetadata];[self scheduleSequencePoll];}
   if (dropped) {
     [self warnOnceMethod:@"playTone" key:@"queue" reason:@"overflow"
                    value:@"command_queue_full" action:@"drop_newest"];
@@ -2321,7 +2346,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   }
 
   [audioEngine stop];
-  if(sequenceEventTimer){dispatch_source_cancel(sequenceEventTimer);sequenceEventTimer=nil;}
+  [self cancelSequencePoll];
   synth_effects_destroy(&effects);if(sequence){free(sequence);sequence=NULL;}sequenceOptions=nil;
   synth_stats_stopped(&stats);
   sourceNode  = nil;

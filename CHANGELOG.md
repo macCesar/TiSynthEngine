@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Poll for iOS sequence events and held-voice metadata retirement only while either has pending work. An idle engine no longer schedules the 10 ms event timer.
 - Poll for Android `sequenceend` events only while accepted sequences exist. An idle engine no longer wakes the main thread every 10 ms, and a listener that restarts the engine during a `sequenceend` event cannot start a second poll chain.
 - Shut the Android engine down when Titanium destroys the root activity, so that a cached process does not keep the exclusive output stream open.
 - Document the Linux build of the Android engine host checks.
@@ -11,6 +12,7 @@
 
 ### Fixed
 
+- Prevent an iOS event drain from accessing a stopped transport or consuming a replacement engine's events when a listener shuts down or restarts the engine.
 - Reopen the Android Oboe stream after every stream error, not only after an output-route disconnect. A timeout or invalid-state error no longer leaves a silent engine that the app believes is running.
 
 ## [1.0.0] - 2026-10-24

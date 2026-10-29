@@ -103,3 +103,5 @@ jobs:
           "$RUNNER_TEMP/studio-contract"
           clang -fobjc-arc -Wall -Wextra -framework Foundation tests/unified_contract_ios.m ios/Classes/TiSynthengineContract.m -o "$RUNNER_TEMP/unified-contract"
           "$RUNNER_TEMP/unified-contract"
+      - name: iOS event polling and metadata retirement
+        run: python3 tests/run_sequence_events_ios.py
