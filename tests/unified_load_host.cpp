@@ -36,7 +36,6 @@ int main(int argc,char **argv) {
  // buffers. Recovery destroys previous FX before allocation of the new buffers.
  auto high=std::make_shared<Engine>(32,1,4);high->renderSampleRate_=192000;assert(high->initializeLimiter());
  size_t bytes=sizeof(Engine)+high->voices_.capacity()*sizeof(Voice)+high->tails_.capacity()*sizeof(Tail)+synth_effects_memory_bytes(&high->effects_)-sizeof(SynthEffects);
- bytes+=high->delayL_.capacity()*sizeof(double)+high->delayR_.capacity()*sizeof(double)+high->peakValues_.capacity()*sizeof(double)+high->peakIndices_.capacity()*sizeof(int64_t);
  assert(bytes<32u*1024u*1024u);
  printf("{\"kind\":\"syntheticAndroidCallback\",\"sampleRate\":48000,\"blockFrames\":256,\"simulatedSeconds\":%d,\"blocks\":%zu,\"voices\":32,\"sequences\":4,\"binaural\":true,\"lfosPerVoice\":2,\"effects\":true,\"loadMedian\":%.9g,\"loadP95\":%.9g,\"loadMax\":%.9g,\"deadlineMisses\":%lld,\"nativeBytes192k\":%zu,\"physicalAcceptance\":false}\n",seconds,work.size(),work[work.size()/2],work[work.size()*95/100],work.back(),(long long)misses,bytes);
 }

@@ -7,13 +7,13 @@ static Command held(Rig &r,int id) { auto c=note(r,440,100,20,80,.3,0); c.type=S
 static Voice *byId(Rig &r,int id) { for(auto &v:r.e().voices_)if(v.active&&v.held.voiceId==id)return &v; return nullptr; }
 static void off(Rig &r,int id) { Command c; c.type=SYNTH_CMD_HELD_OFF; c.voiceId=id; assert(!r.e().enqueue(c)); r.e().processCommands(); }
 int main() {
-  // Native lookahead must meet its deadline, not hard-clip a dense sum.
+  // Final protection bounds dense sums and resets once releases drain.
   for(double level:{.35,1.})for(int count:{4,16,32}) {
     Rig dense(32,1);
     for(int i=0;i<count;i++) {auto c=held(dense,i+1);c.frequency=220+i*40;c.volume=level;dense.e().enqueue(c);}
     auto output=dense.render(48000);assert(peak(output)<=.850001);
     for(int id=1;id<=count;id++)off(dense,id);
-    dense.render(48000);assert(dense.e().limiterGain_==1.0);
+    dense.render(48000);assert(dense.e().output_.gain==1.0);
   }
   double reference=0;
   for(int count:{1,32}) {
@@ -21,16 +21,16 @@ int main() {
     for(int i=0;i<count;i++){auto c=held(quiet,i+1);c.frequency=220+i*40;c.volume=.05;quiet.e().enqueue(c);}
     auto output=quiet.render(48000);double amplitude=amplitudeAt(output,24000,48000,220);
     if(count==1)reference=amplitude;else assert(std::abs(amplitude-reference)<1e-7);
-    assert(quiet.e().limiterGain_==1.0);
+    assert(quiet.e().output_.gain==1.0);
   }
   // Zero ADSR edges must not hard-gate a nonzero square sample.
   {
     Rig edge(1);auto c=note(edge,440,100,0,0,.35,1);c.type=SYNTH_CMD_HELD_ON;c.voiceId=1;
     edge.e().enqueue(c);auto attack=edge.render(1000);
-    assert(std::abs(attack[480*2])<1e-6);
-    for(int frame=481;frame<492;frame++)assert(std::abs(attack[frame*2]-attack[(frame-1)*2])<.002);
+    assert(std::abs(attack[0])<1e-6);
+    for(int frame=1;frame<12;frame++)assert(std::abs(attack[frame*2]-attack[(frame-1)*2])<.002);
     off(edge,1);auto release=edge.render(1000);
-    assert(std::abs(release[480*2]-release[479*2])<.002);
+    assert(std::abs(release[2]-release[0])<.002);
     assert(!byId(edge,1));
   }
   Rig r(2); assert(!r.e().enqueue(held(r,1))); r.e().processCommands();

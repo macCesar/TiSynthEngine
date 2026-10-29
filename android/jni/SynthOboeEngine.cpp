@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "../../shared/synth_core.h"
+#include "../../shared/synth_output.h"
 #include "../../shared/synth_held.h"
 #include "../../shared/synth_retrigger.h"
 #include "../../shared/synth_spatial.h"
@@ -241,7 +242,7 @@ public:
     if(stream_) {
       auto estimate=stream_->calculateLatencyMillis();
       if(estimate && std::isfinite(estimate.value()) && estimate.value()>=0)
-        latency=estimate.value()+lookahead_*1000.0/renderSampleRate_;
+        latency=estimate.value();
     }
     const int bufferFrames=stream_ ? stream_->getBufferSizeInFrames() : 0;
     buffer=bufferFrames>0 ? (double)bufferFrames : NAN;
@@ -433,15 +434,15 @@ public:
         }
       }
       if(processEffects) {
-        smoothedMaster_+=(master_.load(std::memory_order_relaxed)-smoothedMaster_)/lookahead_;
-        synth_effects_process_routed(&effects_,transport_.bpm,left,right,selectedL,selectedR,smoothedMaster_,&left,&right);
+        synth_output_master(&output_,master_.load(std::memory_order_relaxed));
+        synth_effects_process_routed(&effects_,transport_.bpm,left,right,selectedL,selectedR,output_.masterGain,&left,&right);
       } else {left+=selectedL;right+=selectedR;}
       limit(left, right, measure,processEffects);
       synth_transport_advance_sample(&transport_);
       output[frame * 2] = static_cast<float>(clampValue(outputL_, -1.0, 1.0));
       output[frame * 2 + 1] =
           static_cast<float>(clampValue(outputR_, -1.0, 1.0));
-      if (measure) synth_stats_sample(&stats_, output[frame*2], output[frame*2+1], limiterGain_, renderSampleRate_);
+      if (measure) synth_stats_sample(&stats_, output[frame*2], output[frame*2+1], output_.gain, renderSampleRate_);
     }
     }else {
     constexpr int tileCapacity=16;
@@ -502,13 +503,13 @@ public:
       for(int n=0;n<count;n++,frame++) {
         double left=dryL[n],right=dryR[n];
         if(processEffects) {
-          smoothedMaster_+=(master_.load(std::memory_order_relaxed)-smoothedMaster_)/lookahead_;
-          synth_effects_process_routed(&effects_,transport_.bpm,left,right,selectedL[n],selectedR[n],smoothedMaster_,&left,&right);
+          synth_output_master(&output_,master_.load(std::memory_order_relaxed));
+          synth_effects_process_routed(&effects_,transport_.bpm,left,right,selectedL[n],selectedR[n],output_.masterGain,&left,&right);
         }else{left+=selectedL[n];right+=selectedR[n];}
         limit(left,right,measure,processEffects);
         output[frame*2]=static_cast<float>(clampValue(outputL_,-1.0,1.0));
         output[frame*2+1]=static_cast<float>(clampValue(outputR_,-1.0,1.0));
-        if(measure)synth_stats_sample(&stats_,output[frame*2],output[frame*2+1],limiterGain_,renderSampleRate_);
+        if(measure)synth_stats_sample(&stats_,output[frame*2],output[frame*2+1],output_.gain,renderSampleRate_);
       }
     }
     }
@@ -632,22 +633,13 @@ private:
   }
 
   bool initializeLimiter() {
-    lookahead_ = std::max(1, static_cast<int>(renderSampleRate_ * 0.010));
-    delayL_.assign(lookahead_, 0.0);
-    delayR_.assign(lookahead_, 0.0);
-    peakValues_.assign(lookahead_ + 1, 0.0);
-    peakIndices_.assign(lookahead_ + 1, 0);
-    delayIndex_ = peakHead_ = peakCount_ = 0;
-    sampleIndex_ = 0;
-    limiterGain_ = smoothedMaster_ = 1.0;
-    limiterAttackTarget_ = 1.0;
-    limiterAttackStep_ = 0.0;
-    outputL_ = outputR_ = 0.0;
+    synth_output_init(&output_,renderSampleRate_);
+    sampleIndex_=0;
+    outputL_=outputR_=0;
     auto retainedEffects=effects_.memoryBytes?effects_.config:synth_effects_default_config();
     synth_effects_destroy(&effects_);
     if(!synth_effects_init(&effects_,renderSampleRate_))return false;
     synth_effects_set_config(&effects_,&retainedEffects);
-    releaseCoeff_ = 1.0 - std::exp(-1.0 / (0.100 * renderSampleRate_));
     return true;
   }
 
@@ -1168,59 +1160,13 @@ private:
   }
 
   void limit(double left, double right, bool measure,bool effectsProcessed=false) {
-    const double targetMaster = master_.load(std::memory_order_relaxed);
-    if(!effectsProcessed){smoothedMaster_ += (targetMaster - smoothedMaster_) / lookahead_;left*=smoothedMaster_;right*=smoothedMaster_;}
+    if(!effectsProcessed) {
+      double master=synth_output_master(&output_,master_.load(std::memory_order_relaxed));
+      left*=master;right*=master;
+    }
     if(measure)synth_stats_pre_limiter(&stats_,left,right);
-    const int index = delayIndex_;
-    const double delayedL = delayL_[index], delayedR = delayR_[index];
-    delayL_[index] = left;
-    delayR_[index] = right;
-    delayIndex_ = (index + 1) % lookahead_;
-
-    const int capacity = lookahead_ + 1;
-    const int64_t oldest = static_cast<int64_t>(sampleIndex_) - lookahead_;
-    while (peakCount_ > 0 && peakIndices_[peakHead_] < oldest) {
-      peakHead_ = (peakHead_ + 1) % capacity;
-      --peakCount_;
-    }
-    const double peak = std::max(std::abs(left), std::abs(right));
-    while (peakCount_ > 0) {
-      const int last = (peakHead_ + peakCount_ - 1) % capacity;
-      if (peakValues_[last] > peak)
-        break;
-      --peakCount_;
-    }
-    const int insert = (peakHead_ + peakCount_) % capacity;
-    peakValues_[insert] = peak;
-    peakIndices_[insert] = sampleIndex_++;
-    ++peakCount_;
-    const double windowPeak = peakValues_[peakHead_];
-    const double ceiling = profile_ == 3 ? 0.70 : 0.85;
-    const double targetGain = windowPeak > ceiling ? ceiling / windowPeak : 1.0;
-    // Reach the required gain before the peak leaves the lookahead window.
-    // An exponential attack still misses the ceiling at that deadline.
-    if (targetGain < limiterGain_) {
-      limiterAttackTarget_ = std::min(limiterAttackTarget_, targetGain);
-      const double requiredStep = (limiterAttackTarget_ - limiterGain_) / lookahead_;
-      limiterAttackStep_ = std::min(limiterAttackStep_, requiredStep);
-    }
-    if (limiterAttackStep_ < 0.0 && limiterGain_ > limiterAttackTarget_) {
-      limiterGain_ = std::max(limiterAttackTarget_, limiterGain_ + limiterAttackStep_);
-    } else {
-      limiterAttackTarget_ = 1.0;
-      limiterAttackStep_ = 0.0;
-      limiterGain_ = std::min(targetGain, limiterGain_ + (1.0 - limiterGain_) *
-                                                             releaseCoeff_);
-    }
-    if (peak <= 1.0e-12 && windowPeak <= 1.0e-12
-        && std::abs(delayedL) <= 1.0e-12 && std::abs(delayedR) <= 1.0e-12) {
-      limiterGain_ = 1.0;
-      limiterAttackTarget_ = 1.0;
-      limiterAttackStep_ = 0.0;
-      peakHead_ = peakCount_ = 0;
-    }
-    outputL_ = delayedL * limiterGain_;
-    outputR_ = delayedR * limiterGain_;
+    synth_output_protect(&output_,left,right,profile_==3?.70:.85,&outputL_,&outputR_);
+    ++sampleIndex_;
   }
 
   int64_t xrunTotal_=0, xrunLast_=0;
@@ -1244,17 +1190,13 @@ private:
   std::atomic<uint32_t> read_{0}, write_{0};
   std::mutex producerMutex_;
   std::atomic<double> master_{1.0};
-  std::vector<double> delayL_, delayR_, peakValues_;
-  std::vector<int64_t> peakIndices_;
-  int lookahead_ = 1, delayIndex_ = 0, peakHead_ = 0, peakCount_ = 0;
+  SynthOutput output_{};
   uint64_t sampleIndex_ = 0, voiceOrder_ = 0;
   std::array<SynthLiveIdentity,kMaxVoices> identities_{};
   std::array<std::atomic<uint64_t>,kMaxVoices> identityGenerations_{};
   std::array<std::atomic<int>,kMaxVoices> identityPriorities_{};
   std::array<std::atomic<double>,kMaxVoices> identityX_{},identityY_{};
   uint64_t controlGeneration_=0;
-  double releaseCoeff_ = 0.0, limiterGain_ = 1.0, smoothedMaster_ = 1.0;
-  double limiterAttackTarget_ = 1.0, limiterAttackStep_ = 0.0;
   double outputL_ = 0.0, outputR_ = 0.0;
 };
 

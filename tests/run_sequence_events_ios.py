@@ -45,7 +45,7 @@ imports = '''#import <Foundation/Foundation.h>
 @class AVAudioEngine, AVAudioSourceNode;
 typedef NSString *AVAudioSessionCategory;
 '''
-for header in ['synth_core', 'synth_effects', 'synth_held', 'synth_retrigger',
+for header in ['synth_core', 'synth_output', 'synth_effects', 'synth_held', 'synth_retrigger',
                'synth_modulation', 'synth_spatial', 'synth_stats', 'synth_transport']:
     imports += '#include "' + str(ROOT / 'shared' / (header + '.h')) + '"\n'
 imports += '#import "' + str(ROOT / 'ios/Classes/TiSynthengineContract.h') + '"\n'

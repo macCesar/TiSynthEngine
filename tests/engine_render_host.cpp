@@ -176,8 +176,12 @@ Command expressive(Rig &r, double freq, int ms, int attackMs, int releaseMs, int
 }
 
 int samples(int ms) { return static_cast<int>(ms * kRate / 1000.0); }
-// The engine's lookahead limiter delays its output by 10 ms.
+// Historical snapshots retain 10ms; the shared output stage retains none.
+#ifdef SYNTH_OUTPUT_H
+const int kDelay = 0;
+#else
 const int kDelay = 480;
+#endif
 
 void expressiveScenarios() {
   // Decay and sustain: the held level settles at the sustain fraction of the peak.

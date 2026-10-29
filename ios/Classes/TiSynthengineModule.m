@@ -11,6 +11,7 @@
 #import <stdatomic.h>
 #import <stdint.h>
 #include "../../shared/synth_core.h"
+#include "../../shared/synth_output.h"
 #include "../../shared/synth_held.h"
 #include "../../shared/synth_retrigger.h"
 #include "../../shared/synth_modulation.h"
@@ -611,27 +612,9 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
 
   NSMutableSet *warningKeys;
 
-  // Peak limiter state (render-thread only)
-  double smoothedMasterGain;
-  double masterGainTarget;
-  double masterGainStep;
-  int masterGainFramesRemaining;
-  double smoothedGain;
+  // Shared final output state (render-thread only; no retained samples).
+  SynthOutput output;
   int mixingProfile;
-  double gainReleaseCoeff;
-  double limiterAttackTarget;
-  double limiterAttackStep;
-
-  // Lookahead buffer: delays audio so gain settles before the signal is output
-  double *lookaheadL;
-  double *lookaheadR;
-  double *lookaheadPeaks;
-  int64_t *lookaheadPeakIndices;
-  int    lookaheadSize;
-  int    lookaheadIdx;
-  int    lookaheadPeakHead;
-  int    lookaheadPeakCount;
-  int64_t limiterSampleIndex;
 
   BOOL observingAudioNotifications;
   AVAudioSessionCategory audioSessionCategory;
@@ -883,21 +866,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     tails[i].isActive       = false;
   }
   synth_stats_stopped(&stats);
-  // Clear lookahead buffer to prevent stale audio leaking after stop
-  if (lookaheadL && lookaheadR) {
-    memset(lookaheadL, 0, lookaheadSize * sizeof(double));
-    memset(lookaheadR, 0, lookaheadSize * sizeof(double));
-  }
-  smoothedGain = 1.0;
-  smoothedMasterGain = 1.0;
-  masterGainTarget = 1.0;
-  masterGainStep = 0.0;
-  masterGainFramesRemaining = 0;
-  limiterAttackTarget = 1.0;
-  limiterAttackStep = 0.0;
-  lookaheadPeakHead = 0;
-  lookaheadPeakCount = 0;
-  limiterSampleIndex = 0;
+  synth_output_init(&output,engineSampleRate);
 }
 
 - (void)updatePanGainsForVoice:(SynthVoice *)voice
@@ -1374,20 +1343,6 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   atomic_store_explicit(&masterVolume, 1.0, memory_order_relaxed);
   atomic_store_explicit(&emergencyStopRequested, false, memory_order_relaxed);
   atomic_store_explicit(&emergencyShutdownRequested, false, memory_order_relaxed);
-  smoothedGain        = 1.0;
-  smoothedMasterGain  = 1.0;
-  masterGainTarget    = 1.0;
-  masterGainStep      = 0.0;
-  masterGainFramesRemaining = 0;
-  limiterAttackTarget = 1.0;
-  limiterAttackStep   = 0.0;
-  gainReleaseCoeff = 1.0 - exp(-1.0 / (0.100 * engineSampleRate));
-  lookaheadSize       = MAX(1, (int)round(0.010 * engineSampleRate));
-  lookaheadIdx        = 0;
-  lookaheadL          = (double *)calloc(lookaheadSize, sizeof(double));
-  lookaheadR          = (double *)calloc(lookaheadSize, sizeof(double));
-  lookaheadPeaks      = (double *)calloc(lookaheadSize + 1, sizeof(double));
-  lookaheadPeakIndices= (int64_t *)calloc(lookaheadSize + 1, sizeof(int64_t));
 
   [self clearVoices];
   atomic_store_explicit(&commandWriteIndex, 0, memory_order_relaxed);
@@ -1396,8 +1351,6 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   sequence=calloc(1,sizeof(*sequence));
   if(!sequence || !synth_effects_init(&effects,engineSampleRate)) {
     if(sequence){free(sequence);sequence=NULL;}
-    if(lookaheadL){free(lookaheadL);lookaheadL=NULL;}if(lookaheadR){free(lookaheadR);lookaheadR=NULL;}
-    if(lookaheadPeaks){free(lookaheadPeaks);lookaheadPeaks=NULL;}if(lookaheadPeakIndices){free(lookaheadPeakIndices);lookaheadPeakIndices=NULL;}
     return @NO;
   }
   synth_transport_init(sequence,engineSampleRate,options[@"maxSequences"]?[options[@"maxSequences"] intValue]:1);sequenceOptions=[NSMutableDictionary dictionary];sequenceVoiceId=0;
@@ -1462,24 +1415,8 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
                   ? (float *)outputData->mBuffers[1].mData : NULL;
       BOOL isInterleaved = (outR == NULL && outputData->mBuffers[0].mNumberChannels >= 2);
 
-      double mv = atomic_load_explicit(&module->masterVolume, memory_order_relaxed);
-
       for (AVAudioFrameCount frame = 0; frame < frameCount; frame++) {
-        if (mv != module->masterGainTarget) {
-          module->masterGainTarget = mv;
-          module->masterGainFramesRemaining = module->lookaheadSize;
-          module->masterGainStep = (module->masterGainTarget
-                                    - module->smoothedMasterGain)
-                                 / module->masterGainFramesRemaining;
-        }
-        if (module->masterGainFramesRemaining > 0) {
-          module->smoothedMasterGain += module->masterGainStep;
-          module->masterGainFramesRemaining--;
-          if (module->masterGainFramesRemaining == 0) {
-            module->smoothedMasterGain = module->masterGainTarget;
-            module->masterGainStep = 0.0;
-          }
-        }
+        synth_output_master(&module->output,atomic_load_explicit(&module->masterVolume, memory_order_relaxed));
 
         if(module->sequence->activeMask)[module renderSequenceFrame];
         double mixL = 0.0;
@@ -1690,99 +1627,18 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
           if (tail->samplesRemaining <= 0 && !tail->spatial) { tail->isActive = false; synth_stats_tail_end(&module->stats); }
         }
 
-        // --- Stereo-linked lookahead peak limiter ---
-        int laIdx = module->lookaheadIdx;
-        double delayedL = module->lookaheadL[laIdx];
-        double delayedR = module->lookaheadR[laIdx];
-        double scaledL,scaledR;
-        synth_effects_process_routed(&module->effects,module->sequence->bpm,mixL,mixR,selectedL,selectedR,module->smoothedMasterGain,&scaledL,&scaledR);
+        // Routed effects and recombination precede final sample protection.
+        double scaledL,scaledR,finalL,finalR;
+        synth_effects_process_routed(&module->effects,module->sequence->bpm,mixL,mixR,selectedL,selectedR,module->output.masterGain,&scaledL,&scaledR);
         synth_transport_advance_sample(module->sequence);
-        module->lookaheadL[laIdx] = scaledL;
-        module->lookaheadR[laIdx] = scaledR;
-        module->lookaheadIdx = (laIdx + 1) % module->lookaheadSize;
-
-        // Maintain the maximum of the complete future window in amortized O(1).
-        int peakCapacity = module->lookaheadSize + 1;
-        int64_t oldestIndex = module->limiterSampleIndex - module->lookaheadSize;
-        while (module->lookaheadPeakCount > 0
-               && module->lookaheadPeakIndices[module->lookaheadPeakHead]
-                    < oldestIndex) {
-          module->lookaheadPeakHead = (module->lookaheadPeakHead + 1) % peakCapacity;
-          module->lookaheadPeakCount--;
-        }
-
-        if(measure) synth_stats_pre_limiter(&module->stats,scaledL,scaledR);
-        double currentPeak = fmax(fabs(scaledL), fabs(scaledR));
-        while (module->lookaheadPeakCount > 0) {
-          int last = (module->lookaheadPeakHead
-                      + module->lookaheadPeakCount - 1) % peakCapacity;
-          if (module->lookaheadPeaks[last] > currentPeak) break;
-          module->lookaheadPeakCount--;
-        }
-        int insert = (module->lookaheadPeakHead
-                      + module->lookaheadPeakCount) % peakCapacity;
-        module->lookaheadPeaks[insert] = currentPeak;
-        module->lookaheadPeakIndices[insert] = module->limiterSampleIndex;
-        module->lookaheadPeakCount++;
-        module->limiterSampleIndex++;
-
-        // A shared window gain preserves waveform shape instead of flattening
-        // individual peaks with a sample-by-sample safety gain.
-        double windowPeak = module->lookaheadPeaks[module->lookaheadPeakHead];
-
-        double outputCeiling = module->mixingProfile == MIXING_PROFILE_SPEAKER_SAFE
-                             ? SPEAKER_SAFE_OUTPUT_CEILING : OUTPUT_CEILING;
-        double targetGain = windowPeak > outputCeiling
-                          ? outputCeiling / windowPeak : 1.0;
-
-        // A new maximum enters at the far end of the lookahead buffer. Ramp
-        // toward its required gain over that deadline instead of introducing
-        // an instantaneous gain discontinuity. Do not slow an attack already
-        // in flight because an earlier peak can have a nearer deadline.
-        if (targetGain < module->smoothedGain) {
-          module->limiterAttackTarget = fmin(
-              module->limiterAttackTarget, targetGain);
-          double requiredStep = (module->limiterAttackTarget
-                                 - module->smoothedGain)
-                              / module->lookaheadSize;
-          module->limiterAttackStep = fmin(
-              module->limiterAttackStep, requiredStep);
-        }
-
-        if (module->limiterAttackStep < 0.0
-            && module->smoothedGain > module->limiterAttackTarget) {
-          module->smoothedGain = fmax(
-              module->limiterAttackTarget,
-              module->smoothedGain + module->limiterAttackStep);
-        } else {
-          module->limiterAttackTarget = 1.0;
-          module->limiterAttackStep = 0.0;
-          module->smoothedGain = fmin(
-              targetGain,
-              module->smoothedGain
-                  + (1.0 - module->smoothedGain) * module->gainReleaseCoeff);
-        }
-
-        // A fully drained lookahead window has no remaining waveform to protect.
-        // Reset only dynamic bus gain so the next unrelated sound starts at its
-        // intended level without truncating a release tail or creating a click.
-        BOOL drainedWindow = currentPeak <= 1.0e-12
-            && windowPeak <= 1.0e-12
-            && fabs(delayedL) <= 1.0e-12
-            && fabs(delayedR) <= 1.0e-12;
-        if (drainedWindow) {
-          module->smoothedGain = 1.0;
-          module->limiterAttackTarget = 1.0;
-          module->limiterAttackStep = 0.0;
-          module->lookaheadPeakHead = 0;
-          module->lookaheadPeakCount = 0;
-        }
-        double finalL = delayedL * module->smoothedGain;
-        double finalR = delayedR * module->smoothedGain;
+        if(measure)synth_stats_pre_limiter(&module->stats,scaledL,scaledR);
+        double ceiling=module->mixingProfile==MIXING_PROFILE_SPEAKER_SAFE
+                       ? SPEAKER_SAFE_OUTPUT_CEILING : OUTPUT_CEILING;
+        synth_output_protect(&module->output,scaledL,scaledR,ceiling,&finalL,&finalR);
 
         float fL = (float)ClampDouble(finalL, -1.0, 1.0);
         float fR = (float)ClampDouble(finalR, -1.0, 1.0);
-        if(measure) synth_stats_sample(&module->stats,fL,fR,module->smoothedGain,(int)module->engineSampleRate);
+        if(measure) synth_stats_sample(&module->stats,fL,fR,module->output.gain,(int)module->engineSampleRate);
 
         if (outR != NULL) {
           outL[frame] = fL;
@@ -2355,13 +2211,6 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   audioEngine = nil;
   [voiceGenerations removeAllObjects];[voicePositions removeAllObjects];[voiceSpatialModes removeAllObjects];
 
-  if (lookaheadL) { free(lookaheadL); lookaheadL = NULL; }
-  if (lookaheadR) { free(lookaheadR); lookaheadR = NULL; }
-  if (lookaheadPeaks) { free(lookaheadPeaks); lookaheadPeaks = NULL; }
-  if (lookaheadPeakIndices) {
-    free(lookaheadPeakIndices);
-    lookaheadPeakIndices = NULL;
-  }
   atomic_store_explicit(&commandWriteIndex, 0, memory_order_relaxed);
   atomic_store_explicit(&commandReadIndex,  0, memory_order_relaxed);
   }

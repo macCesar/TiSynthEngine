@@ -52,7 +52,7 @@ static void startupBypass(int rate,int wave) {
   publishDisabled(published);compare(rate/2,false);
   Command off;off.type=SYNTH_CMD_HELD_OFF;off.voiceId=1;
   assert(!plain.e().enqueue(off));assert(!published.e().enqueue(off));compare(rate/2,false);
-  compare(rate/10,true);assert(plain.e().limiterGain_==1&&published.e().limiterGain_==1);
+  compare(rate/10,true);assert(plain.e().output_.gain==1&&published.e().output_.gain==1);
 }
 struct Spectrum {double rms,peak,dc,fundamentalRms,residualRatio,maxStep,image31Ratio,image33Ratio;};
 static double folded(double hz) {hz=std::fmod(hz,kRate);return hz>kRate*.5?kRate-hz:hz;}
@@ -81,7 +81,7 @@ static Spectrum sourceLevel(int wave,int midi,double master,double volume) {
   Rig r(32,1);setRate(r,48000,master);publishDisabled(r);r.render(4800);
   double hz=440*std::exp2((midi-69)/12.);auto c=studioNote(r,wave,hz,volume);assert(!r.e().enqueue(c));
   auto samples=r.render(105600);auto v=spectrum(samples,hz);
-  assert(std::isfinite(v.rms)&&std::isfinite(v.residualRatio)&&r.e().limiterGain_==1);
+  assert(std::isfinite(v.rms)&&std::isfinite(v.residualRatio)&&r.e().output_.gain==1);
   if(wave==0)assert(v.residualRatio<1e-6);
   printf("{\"wave\":%d,\"midi\":%d,\"master\":%.6g,\"voiceVolume\":%.12g,\"peakDb\":%.9g,\"rmsDb\":%.9g,\"dc\":%.9g,\"fundamentalRms\":%.9g,\"residualRatio\":%.9g,\"residualDb\":%.9g,\"maxStep\":%.9g,\"image31Db\":%.9g,\"image33Db\":%.9g}\n",wave,midi,master,volume,synth_stats_db(v.peak),synth_stats_db(v.rms),v.dc,v.fundamentalRms,v.residualRatio,synth_stats_db(v.residualRatio),v.maxStep,synth_stats_db(v.image31Ratio),synth_stats_db(v.image33Ratio));
   return v;

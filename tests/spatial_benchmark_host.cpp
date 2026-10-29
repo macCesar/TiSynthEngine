@@ -62,7 +62,7 @@ int main() {
 
       if (peak >= 0.99999) clipped++;
     }
-    minGain = std::min(minGain, rig.e().limiterGain_);
+    minGain = std::min(minGain, rig.e().output_.gain);
     frame += count - 1;
   }
   std::sort(budgetPercent.begin(), budgetPercent.end());
