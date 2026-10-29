@@ -1,6 +1,6 @@
 # Third-party notices
 
-The Android module links [Oboe](https://github.com/google/oboe) 1.10.0, which is distributed under the Apache License 2.0. The Android archive includes Oboe's native library, `liboboe.so`, for every supported ABI. The iOS module has no third-party dependencies.
+The Android module links [Oboe](https://github.com/google/oboe) 1.11.0, which is distributed under the Apache License 2.0. The Android archive includes Oboe's native library, `liboboe.so`, for every supported ABI. The iOS module has no third-party dependencies.
 
 The chorus, delay, reverb, saturation and voice LFOs are implemented in the shared DSP without additional external effect libraries. Existing Oboe and KEMAR notices remain applicable.
 

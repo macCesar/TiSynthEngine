@@ -79,7 +79,7 @@ win.addEventListener('close', closeAudio)
 win.open()
 ```
 
-Use one owner for the engine. Start it once, pass a small audio service to the screens that need it, and call `shutdown()` from the owner. While the engine is running, another valid `start()` call returns `true` and leaves the existing options in effect. Changing voice capacity, profile or session policy requires `shutdown()` and a new start. This example selects `ambient` for game/UI audio; the default remains `playback`. Android validates the session policy and leaves output unchanged.
+Use one owner for the engine. Start it once, pass a small audio service to the screens that need it, and call `shutdown()` from the owner. On Android, the module also shuts down when Titanium destroys the root activity, so that a cached process does not keep the audio stream open. This is a safety net, not a replacement for the owner's `shutdown()` call. While the engine is running, another valid `start()` call returns `true` and leaves the existing options in effect. Changing voice capacity, profile or session policy requires `shutdown()` and a new start. This example selects `ambient` for game/UI audio; the default remains `playback`. Android validates the session policy and leaves output unchanged.
 
 ## Detect required capabilities
 

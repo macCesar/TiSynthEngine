@@ -525,8 +525,11 @@ public:
 
   void onErrorAfterClose(oboe::AudioStream *failedStream,
                          oboe::Result error) override {
-    if (error != oboe::Result::ErrorDisconnected ||
-        closing_.load(std::memory_order_acquire) ||
+    // Every error reaching this callback has already closed the stream: a route
+    // disconnect, a timeout or an invalid state. Recover from all of them, or
+    // the engine stays silent while the app still believes it is running.
+    (void)error;
+    if (closing_.load(std::memory_order_acquire) ||
         !runningRequested_.load(std::memory_order_acquire))
       return;
 
@@ -537,7 +540,7 @@ public:
     if (stream_ && stream_.get() != failedStream)
       return;
 
-    // Oboe has already stopped and closed the disconnected stream before this
+    // Oboe has already stopped and closed the failed stream before this
     // callback. Drop in-flight voices because their sample counts and phase
     // increments belong to the previous route's sample rate. Commands queued
     // while the route settles remain available to the new stream.

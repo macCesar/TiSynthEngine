@@ -11,9 +11,10 @@ with tempfile.TemporaryDirectory() as folder:
  sources={
  'android/os/Looper.java':'package android.os; public class Looper { public static Looper getMainLooper(){return new Looper();} }',
  'android/os/Handler.java':'package android.os; public class Handler { public Handler(Looper l){} public boolean post(Runnable r){return true;} public boolean postDelayed(Runnable r,long t){return true;} public void removeCallbacks(Runnable r){} }',
+ 'android/app/Activity.java':'package android.app; public class Activity {}',
  'android/util/Log.java':'package android.util; public class Log { public static int w(String t,String m){return 0;} }',
  'org/appcelerator/kroll/KrollDict.java':'package org.appcelerator.kroll; public class KrollDict extends java.util.HashMap<String,Object> { public KrollDict(){} public KrollDict(java.util.HashMap<String,Object> m){super(m);} }',
- 'org/appcelerator/kroll/KrollModule.java':'package org.appcelerator.kroll; public class KrollModule { public void fireEvent(String n,KrollDict d){} }',
+ 'org/appcelerator/kroll/KrollModule.java':'package org.appcelerator.kroll; public class KrollModule { public void fireEvent(String n,KrollDict d){} public void onDestroy(android.app.Activity a){} }',
  'org/appcelerator/kroll/annotations/Kroll.java':'package org.appcelerator.kroll.annotations; public class Kroll { public @interface module { String name(); String id(); } public @interface method {} }',
  'ti/synthengine/StatsApiRegression.java':'''package ti.synthengine;
 import org.appcelerator.kroll.KrollDict;
@@ -36,6 +37,7 @@ public class StatsApiRegression {
   check(!m.start(new KrollDict(){{put("maxVoices",100);}}));
   check(n(m.getStats(),"rejectedRequestCount")==1);
   m.shutdown(); check(n(m.getStats(),"rejectedRequestCount")==1);
+  m.onDestroy(null); m.onDestroy(null); check(n(m.getStats(),"rejectedRequestCount")==1); // root-activity teardown is idempotent
   System.out.println("StatsApiRegression: passed");
  }
 }'''}

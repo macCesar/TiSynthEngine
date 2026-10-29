@@ -94,8 +94,13 @@ public class TiSynthEngineModule extends KrollModule {
     }
     private final Set<String> warnedKeys = new HashSet<>();
     private final android.os.Handler sequenceEvents = new android.os.Handler(android.os.Looper.getMainLooper());
+    // The end-event poll runs only while accepted sequences exist, so an idle
+    // engine never wakes the main thread. One chain at a time: a listener that
+    // restarts the engine inside a sequenceend event must not add a second one.
+    private boolean sequencePollScheduled;
     private final Runnable sequencePoll = new Runnable() { public void run() {
         synchronized(TiSynthEngineModule.this) {
+            sequencePollScheduled=false;
             if(synthThread==null)return;
             double[] ends=synthThread.sequenceEnds();
             if(ends!=null)for(int i=0;i+1<ends.length;i+=2) {
@@ -103,9 +108,18 @@ public class TiSynthEngineModule extends KrollModule {
                 KrollDict event=new KrollDict();event.put("sequenceId",id);
                 event.put("reason",ends[i+1]==1?"completed":"stopped");fireEvent("sequenceend",event);
             }
-            sequenceEvents.postDelayed(this,10);
+            scheduleSequencePoll();
         }
     }};
+    private void scheduleSequencePoll() {
+        if(sequencePollScheduled||synthThread==null||acceptedSequences.isEmpty())return;
+        sequencePollScheduled=true;
+        sequenceEvents.postDelayed(sequencePoll,10);
+    }
+    private void cancelSequencePoll() {
+        sequenceEvents.removeCallbacks(sequencePoll);
+        sequencePollScheduled=false;
+    }
     private long nextSequenceId=1;
 
     public TiSynthEngineModule() {
@@ -229,7 +243,7 @@ public class TiSynthEngineModule extends KrollModule {
         }
         synthThread = candidate;
         acceptedSequences.clear();acceptedProcessing=null;rejectedPublications.set(0);
-        sequenceEvents.post(sequencePoll);
+        cancelSequencePoll();
         lastStats=emptyStats();
         for(int i=0;i<3;i++) rejected.set(i,0);
 
@@ -482,7 +496,7 @@ public class TiSynthEngineModule extends KrollModule {
         catch(IllegalArgumentException e){reject(0);return 0;}
         int id=(int)nextSequenceId++;
         if(!synthThread.publishSequence(id,next.packet,true)){rejectedPublications.incrementAndGet();reject(2);return 0;}
-        acceptedSequences.put(id,next.acceptedState());return id;
+        acceptedSequences.put(id,next.acceptedState());scheduleSequencePoll();return id;
     }
     private int sequenceId(KrollDict options) {
         if(options==null||!(options.get("sequenceId") instanceof Number))return 0;
@@ -529,17 +543,25 @@ public class TiSynthEngineModule extends KrollModule {
 
     @Kroll.method
     public synchronized void shutdown() {
-        sequenceEvents.removeCallbacks(sequencePoll);
+        cancelSequencePoll();
         if (synthThread == null) return;
-        lastStats=synthThread.stopAndGetStats();
-        boolean dropped = synthThread.requestShutdown();
+        double[] finalStats=synthThread.stopAndGetStats();
+        if(finalStats!=null) lastStats=finalStats;
+        synthThread.requestShutdown();
         lastStats[0]=lastStats[2]=lastStats[3]=lastStats[5]=lastStats[15]=0;
         lastStats[20]=Double.NaN;
         for(int i=6;i<15;i++) lastStats[i]=Double.NaN;
-        if (dropped) {
-            warnOnce("shutdown", "queue", "overflow", "command_queue_full", "fallback_control_flag");
-        }
         synthThread = null;
+    }
+
+    /**
+     * The root activity is going away. Release the stream now: a cached process
+     * must not keep an exclusive low-latency output open after the app closes.
+     */
+    @Override
+    public void onDestroy(android.app.Activity activity) {
+        super.onDestroy(activity);
+        shutdown();
     }
 
     // -------------------------------------------------------------------------

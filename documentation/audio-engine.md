@@ -212,12 +212,22 @@ It checks that the envelope equals the original attack, hold and release shape f
 The Android engine renders on the host. `tests/engine_render_host.cpp` compiles `SynthOboeEngine.cpp` without opening an audio stream and drives the same command and callback path Oboe uses. It needs the Oboe headers, which any Gradle cache that built the module has, and the JDK's `jni.h`, so it is a local check and does not run in CI:
 
 ```sh
-OBOE=$(find ~/.gradle -path '*oboe-1.10.0/prefab/modules/oboe/include' | head -1)
+OBOE=$(find ~/.gradle -path '*oboe-1.11.0/prefab/modules/oboe/include' | head -1)
 JH=$(/usr/libexec/java_home)
 test_dir=$(mktemp -d /tmp/ti-synth-engine.XXXXXX)
 clang++ -std=c++17 -O1 -Wall -I"$OBOE" -I"$JH/include" -I"$JH/include/darwin" \
   -DHAS_EXPRESSIVE -DENGINE_CPP='"../android/jni/SynthOboeEngine.cpp"' \
   -Wl,-undefined,dynamic_lookup tests/engine_render_host.cpp \
+  -o "$test_dir/engine_render"
+"$test_dir/engine_render"
+```
+
+On Linux, point `JH` at the JDK directory, use its `include/linux` directory, pre-include `<cstring>` because Oboe's headers rely on it, and let the linker ignore the Oboe symbols that the host never calls:
+
+```sh
+clang++ -std=c++17 -O1 -Wall -include cstring -I"$OBOE" -I"$JH/include" -I"$JH/include/linux" \
+  -DHAS_EXPRESSIVE -DENGINE_CPP='"../android/jni/SynthOboeEngine.cpp"' \
+  -Wl,--unresolved-symbols=ignore-all tests/engine_render_host.cpp \
   -o "$test_dir/engine_render"
 "$test_dir/engine_render"
 ```

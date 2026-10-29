@@ -5,7 +5,7 @@
 // callback uses. It needs the Oboe headers (any Gradle cache that built the
 // module has them) and the JDK's jni.h, so it is a local tool, not part of CI.
 //
-//   OBOE=$(find ~/.gradle -path '*oboe-1.10.0/prefab/modules/oboe/include' | head -1)
+//   OBOE=$(find ~/.gradle -path '*oboe-1.11.0/prefab/modules/oboe/include' | head -1)
 //   JH=$(/usr/libexec/java_home)
 //   clang++ -std=c++17 -O1 -Wall -I"$OBOE" -I"$JH/include" -I"$JH/include/darwin" \
 //     -DHAS_EXPRESSIVE -DENGINE_CPP='"../android/jni/SynthOboeEngine.cpp"' \

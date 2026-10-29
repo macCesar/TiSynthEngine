@@ -2,9 +2,10 @@ package ti.synthengine;
 
 /**
  * Thin Java owner for the native Oboe engine. All synthesis and mixing runs in
- * Oboe's real-time float callback; Java only publishes control commands.
+ * Oboe's real-time float callback; Java only publishes control commands. The
+ * class keeps its historical name because the JNI symbols are derived from it.
  */
-public final class SynthThread extends Thread {
+public final class SynthThread {
     /** Layout of the extra voice parameters handed to the native renderer. */
     static final int EXTRA_DECAY_MS = 0;
     static final int EXTRA_SUSTAIN = 1;
@@ -92,21 +93,14 @@ public final class SynthThread extends Thread {
         return handle == 0 || nativeStopAll(handle);
     }
 
-    public synchronized boolean requestShutdown() {
+    public synchronized void requestShutdown() {
         long handle = nativeHandle;
-        if (handle == 0) return false;
+        if (handle == 0) return;
         nativeHandle = 0;
         nativeDestroy(handle);
-        return false;
     }
 
     public synchronized boolean startAudio() { return nativeHandle != 0 && nativeStart(nativeHandle); }
-
-    @Override
-    public synchronized void run() {
-        long handle = nativeHandle;
-        if (handle != 0) nativeStart(handle);
-    }
 
     public synchronized double[] stopAndGetStats() {
         if(nativeHandle == 0) return null;

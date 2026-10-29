@@ -28,7 +28,7 @@ def build(args):
     archive = subprocess.check_output(['git', 'archive', args.baseline], cwd=ROOT)
     with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         source.extractall(baseline, filter='data')
-    oboe = next(Path.home().joinpath('.gradle/caches').glob('**/oboe-1.10.0/prefab/modules/oboe/include'))
+    oboe = next(Path.home().joinpath('.gradle/caches').glob('**/oboe-1.11.0/prefab/modules/oboe/include'))
     java = Path(subprocess.check_output(['/usr/libexec/java_home'], text=True).strip())
     flags = ['clang++', '-std=c++17', '-O3', '-Wall', '-I' + str(oboe),
              '-I' + str(java / 'include'), '-I' + str(java / 'include/darwin'),

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Poll for Android `sequenceend` events only while accepted sequences exist. An idle engine no longer wakes the main thread every 10 ms, and a listener that restarts the engine during a `sequenceend` event cannot start a second poll chain.
+- Shut the Android engine down when Titanium destroys the root activity, so that a cached process does not keep the exclusive output stream open.
+- Document the Linux build of the Android engine host checks.
+- Link Oboe 1.11.0 on Android.
+
+### Fixed
+
+- Reopen the Android Oboe stream after every stream error, not only after an output-route disconnect. A timeout or invalid-state error no longer leaves a silent engine that the app believes is running.
+
 ## [1.0.0] - 2026-10-24
 
 Initial official release. The earlier private snapshot and all subsequent changes belong to pre-release development.

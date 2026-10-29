@@ -6,7 +6,7 @@ Release 1.0.0 exposes the same nineteen methods on both platforms. Effects and e
 
 ## Runtime
 
-The renderer runs in C++ through Oboe's floating-point audio callback. It requests low-latency mode and exclusive sharing when the device supports them, then falls back to a compatible stream when needed. Output-route errors reopen the stream and refresh its sample rate.
+The renderer runs in C++ through Oboe's floating-point audio callback. It requests low-latency mode and exclusive sharing when the device supports them, then falls back to a compatible stream when needed. Stream errors, including output-route disconnects, reopen the stream and refresh its sample rate. The module polls for `sequenceend` events only while accepted sequences exist. When Titanium destroys the root activity, the module shuts the engine down so that a cached process does not keep the output stream open.
 
 The native engine provides:
 
@@ -22,7 +22,7 @@ The native engine provides:
 - smoothed master volume and a stereo-linked lookahead limiter;
 - `conservative`, `balanced`, `speakerSafe` and `raw` mixing profiles.
 
-`build.gradle` resolves Oboe 1.10.0 through Prefab and extends Titanium's generated `Android.mk`. Supported ABIs are `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`. The packaged AAR requires compile API 35 or newer and can be used by Titanium 13.2.0 projects.
+`build.gradle` resolves Oboe 1.11.0 through Prefab and extends Titanium's generated `Android.mk`. Supported ABIs are `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`. The packaged AAR requires compile API 35 or newer and can be used by Titanium 13.2.0 projects.
 
 `src/ti/synthengine/SynthDsp.java` is the host-testable mixing and limiter reference. The runtime renderer is in `jni/SynthOboeEngine.cpp`.
 
