@@ -9,15 +9,21 @@ static uint64_t hashBytes(uint64_t h,const void *data,size_t size) {
 static double seconds(clockid_t clock) {struct timespec t;assert(!clock_gettime(clock,&t));return t.tv_sec+t.tv_nsec*1e-9;}
 static RenderRig *rig(double rate) {
  RenderRig *r=[RenderRig new];r->engineMaxVoices=32;r->engineSampleRate=rate;
- r->mixingProfile=MIXING_PROFILE_CONSERVATIVE;r->lookaheadSize=MAX(1,(int)round(rate*.01));
+ assert([[r configureStart:@{}] boolValue]);
+#ifndef SYNTH_OUTPUT_H
+ r->lookaheadSize=MAX(1,(int)round(rate*.01));
  r->lookaheadL=calloc(r->lookaheadSize,sizeof(double));r->lookaheadR=calloc(r->lookaheadSize,sizeof(double));
  r->lookaheadPeaks=calloc(r->lookaheadSize+1,sizeof(double));r->lookaheadPeakIndices=calloc(r->lookaheadSize+1,sizeof(int64_t));
+#endif
  r->sequence=calloc(1,sizeof(SynthTransport));assert(r->sequence);synth_transport_init(r->sequence,rate,4);
  assert(synth_effects_init(&r->effects,rate));r->processingOptions=synth_effects_default_config();
  r->voiceGenerations=[NSMutableDictionary dictionary];r->voicePositions=[NSMutableDictionary dictionary];r->voiceSpatialModes=[NSMutableDictionary dictionary];
  r->sequenceOptions=[NSMutableDictionary dictionary];r->warningKeys=[NSMutableSet set];r->audioEngine=(AVAudioEngine *)[NSObject new];
  synth_stats_init(&r->stats);mach_timebase_info(&r->statsTimebase);
- r->commandProducerLock=OS_UNFAIR_LOCK_INIT;r->gainReleaseCoeff=1-exp(-1/(.1*rate));
+ r->commandProducerLock=OS_UNFAIR_LOCK_INIT;
+#ifndef SYNTH_OUTPUT_H
+ r->gainReleaseCoeff=1-exp(-1/(.1*rate));
+#endif
  r->stopFadeSamples=MAX(1,MsToSamples(20,rate));r->stealFadeSamples=MAX(1,MsToSamples(6,rate));
  atomic_store(&r->masterVolume,1);[r clearVoices];return r;
 }
@@ -26,7 +32,10 @@ static void destroyRig(RenderRig *r) {
  [r cancelSequencePoll];
 #endif
  synth_effects_destroy(&r->effects);free(r->sequence);r->sequence=NULL;
+
+#ifndef SYNTH_OUTPUT_H
  free(r->lookaheadL);free(r->lookaheadR);free(r->lookaheadPeaks);free(r->lookaheadPeakIndices);
+#endif
 }
 static SynthCommand tone(RenderRig *r,int index,int wave,BOOL spatial,BOOL held) {
  SynthCommand c={0};c.type=held?SYNTH_CMD_HELD_ON:CMD_NOTE_ON;c.voiceId=held?index+1:0;
@@ -48,11 +57,16 @@ static uint64_t stateHash(RenderRig *r) {
  }
  HASH(h,r->voiceOrder);HASH(h,r->sequenceVoiceId);HASH(h,r->batchOrder);HASH(h,r->batchRemaining);
  HASH(h,r->commandReadIndex);HASH(h,r->commandWriteIndex);
+#ifdef SYNTH_OUTPUT_H
+ HASH(h,r->output.masterGain);HASH(h,r->output.masterTarget);HASH(h,r->output.masterStep);
+ HASH(h,r->output.masterRemaining);HASH(h,r->output.gain);HASH(h,r->output.quietFrames);
+#else
  HASH(h,r->smoothedMasterGain);HASH(h,r->masterGainTarget);HASH(h,r->masterGainStep);HASH(h,r->masterGainFramesRemaining);
  HASH(h,r->smoothedGain);HASH(h,r->limiterAttackTarget);HASH(h,r->limiterAttackStep);
  HASH(h,r->lookaheadIdx);HASH(h,r->lookaheadPeakHead);HASH(h,r->lookaheadPeakCount);HASH(h,r->limiterSampleIndex);
  h=hashBytes(h,r->lookaheadL,r->lookaheadSize*sizeof(double));h=hashBytes(h,r->lookaheadR,r->lookaheadSize*sizeof(double));
  h=hashBytes(h,r->lookaheadPeaks,(r->lookaheadSize+1)*sizeof(double));h=hashBytes(h,r->lookaheadPeakIndices,(r->lookaheadSize+1)*sizeof(int64_t));
+#endif
  SynthEffects *fx=&r->effects;HASH(h,fx->config);HASH(h,fx->current);HASH(h,fx->step);
  h=hashBytes(h,&fx->chorusGate,sizeof(*fx)-offsetof(SynthEffects,chorusGate));
  for(int i=0;i<16;i++) {
@@ -203,9 +217,79 @@ static void metadataRegression(void) {
  assert(!r->voiceGenerations.count&&!r->voicePositions.count&&!r->voiceSpatialModes.count);
  destroyRig(r);puts("Apple voice metadata: unknown edits retain nothing, queued/active owners survive, retired owner reclaimed PASS");
 }
+static void capturePipeline(const char *directory) {
+ const int rates[]={16000,44100,48000,96000,192000};
+ for(int k=0;k<5;k++)for(int kind=0;kind<8;kind++) {
+  RenderRig *r=rig(rates[k]);synth_stats_enable(&r->stats,YES);
+  if(kind&1){SynthCommand fx={0};fx.type=7;fx.processing=synth_effects_default_config();fx.processing.chorus.enabled=fx.processing.delay.enabled=fx.processing.reverb.enabled=1;assert(![r enqueueCommand:fx]);}
+  for(int i=0;i<8;i++) {
+   SynthCommand c=tone(r,i,0,kind&2,YES);c.frequency=220+i*31;c.volume=kind>=4?2:.005;c.sustain=1;c.decaySamples=0;
+   c.pan=c.panEnd=0;c.attackSamples=rates[k]/500;c.releaseSamples=rates[k]*3/100;
+   assert(![r enqueueCommand:c]);
+  }
+  char path[4096];snprintf(path,sizeof(path),"%s/%d-%d.f32",directory,rates[k],kind);
+  FILE *file=fopen(path,"wb");assert(file);
+  int sizes[]={1,3,17,256,511};int total=rates[k]/2,off=rates[k]/8,frame=0,block=0;
+  float output[2048];
+  while(frame<total) {
+   if(frame==off)for(int id=1;id<=8;id++){SynthCommand c={0};c.type=SYNTH_CMD_HELD_OFF;c.voiceId=id;c.voiceGeneration=id;assert(![r enqueueCommand:c]);}
+   int requested=sizes[block++%5];
+   int n=MIN(requested,(frame<off?off:total)-frame);
+   render(r,n,output,1);for(int i=0;i<n*2;i++)assert(isfinite(output[i])&&fabs(output[i])<=.850001);
+   assert(fwrite(output,sizeof(float),n*2,file)==(size_t)n*2);frame+=n;
+  }
+  fclose(file);printf("{\"rate\":%d,\"kind\":%d,\"prePeakDb\":%.9g,\"reductionDb\":%.9g}\n",rates[k],kind,r->stats.values[ST_PRE_LIMITER_PEAK],r->stats.values[ST_MAX_REDUCTION]);destroyRig(r);
+ }
+}
+static void outputRegression(void) {
+ const int rates[]={16000,44100,48000,96000,192000};
+ NSArray *names=@[@" RaW ",@" CONSERVATIVE\n",@" Balanced ",@"speakerSAFE"];
+ RenderRig *invalid=rig(48000);assert(![[invalid configureStart:@{@"mixingProfile":@"invalid"}] boolValue]);
+ assert(![[invalid configureStart:@{@"mixingProfile":@42}] boolValue]);destroyRig(invalid);
+ for(int k=0;k<5;k++)for(int profile=0;profile<4;profile++) {
+  RenderRig *r=rig(rates[k]);assert([[r configureStart:@{@"mixingProfile":names[profile]}] boolValue]);
+  if(r->mixingProfile!=profile){fprintf(stderr,"profile requested=%d applied=%d\n",profile,r->mixingProfile);abort();}
+  SynthCommand c=tone(r,0,0,NO,YES);c.volume=.1;c.sustain=1;c.attackSamples=0;c.decaySamples=0;
+  assert(![r enqueueCommand:c]);float samples[2048]={0};render(r,2,samples,1);
+  assert(samples[2]!=0); // oscillator starts at zero, next frame must be audible
+  const double expected[]={1,.44,.44*M_SQRT2,.44/M_SQRT2};
+  assert(fabs(r->voices[0].eventGain-expected[profile])<1e-12);
+  atomic_store(&r->masterVolume,0);
+  int n=(int)round(rates[k]*.01);while(n){int b=MIN(n,1024);render(r,b,samples,1);n-=b;}
+#ifdef SYNTH_OUTPUT_H
+  assert(r->output.masterGain==0 && r->output.masterRemaining==0);
+#else
+  assert(r->smoothedMasterGain==0 && r->masterGainFramesRemaining==0);
+#endif
+#ifdef SYNTH_OUTPUT_H
+  // Retarget mid-ramp, then stress actual routed processing and output.
+  atomic_store(&r->masterVolume,1);render(r,1,samples,1);
+  assert(fabs(r->output.masterGain-1./r->output.rampSamples)<1e-12);
+  atomic_store(&r->masterVolume,2);render(r,1,samples,1);
+  double from=1./r->output.rampSamples;
+  assert(fabs(r->output.masterGain-(from+(2-from)/r->output.rampSamples))<1e-12);
+  SynthCommand fx={0};fx.type=7;fx.processing=synth_effects_default_config();fx.processing.inputGain=4;assert(![r enqueueCommand:fx]);
+  for(int i=1;i<32;i++){SynthCommand hot=tone(r,i,0,NO,YES);hot.frequency=c.frequency;hot.volume=2;assert(![r enqueueCommand:hot]);}
+  synth_stats_enable(&r->stats,YES);
+  const int blocks[]={0,1,3,17,256,511,1024};
+  for(int block=0;block<60;block++) {
+   int frames=blocks[block%7];render(r,frames,samples,1);
+   for(int i=0;i<frames*2;i++)assert(isfinite(samples[i])&&fabs(samples[i])<=(profile==3?.700001:.850001));
+  }
+  assert(r->stats.values[ST_MAX_REDUCTION]>0);
+  [r clearVoices];render(r,1024,samples,1);
+  for(int i=0;i<2048;i++)assert(samples[i]==0);
+  assert(r->output.gain==1);
+#endif
+  destroyRig(r);
+ }
+ puts("Apple production output/start: four profiles incl. whitespace/case, zero retention, exact 10ms master at five rates PASS");
+}
 int main(int argc,char **argv) {@autoreleasepool {
  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE,0);
- if(argc>1&&!strcmp(argv[1],"--trace")){traceBytes=YES;fixtures();}
+ if(argc>2&&!strcmp(argv[1],"--capture"))capturePipeline(argv[2]);
+ else if(argc>1&&!strcmp(argv[1],"--output"))outputRegression();
+ else if(argc>1&&!strcmp(argv[1],"--trace")){traceBytes=YES;fixtures();}
  else if(argc>1&&!strcmp(argv[1],"--metadata"))metadataRegression();
  else if(argc>1&&atoi(argv[1])==-1)pruneBenchmark(argc>2?atoi(argv[2]):100000);
  else if(argc>1&&atoi(argv[1])==-2)producerBenchmark(argc>2?atoi(argv[2]):1,argc>3?atoi(argv[3]):100);

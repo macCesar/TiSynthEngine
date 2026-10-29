@@ -32,8 +32,17 @@ jobs:
           node tests/documentation_regression.js
           node --test tests/example_app_regression.js
 
+      - name: Production Android output and start profiles
+        run: |
+          curl --fail --location https://dl.google.com/dl/android/maven2/com/google/oboe/oboe/1.11.0/oboe-1.11.0.aar --output "$RUNNER_TEMP/oboe.aar"
+          unzip -q "$RUNNER_TEMP/oboe.aar" -d "$RUNNER_TEMP/oboe"
+          python3 tests/run_start_profiles.py
+          python3 tests/run_native_hosts.py --oboe-include "$RUNNER_TEMP/oboe/prefab/modules/oboe/include"
+
       - name: Shared DSP core tests
         run: |
+          cc -std=c11 -O2 -Wall -Wextra -Werror tests/output_core_regression.c -lm -o "$RUNNER_TEMP/output_core"
+          "$RUNNER_TEMP/output_core"
           cc -std=c99 -O2 -Wall -Wextra -Wpedantic -o "$RUNNER_TEMP/dsp_core" tests/dsp_core_regression.c -lm
           "$RUNNER_TEMP/dsp_core"
           cc -std=c11 -O2 -Wall -Wextra -Werror -o "$RUNNER_TEMP/held_core" tests/held_core_regression.c -lm
@@ -66,7 +75,7 @@ jobs:
           python3 tests/run_stats_java.py
           python3 tests/run_studio_java.py
 
-      - name: Java contract and DSP tests
+      - name: Java contracts and historical DSP model (not a production oracle)
         working-directory: android
         run: |
           test_dir=$(mktemp -d)
@@ -89,6 +98,14 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Production Apple output and start profiles
+        run: |
+          python3 tests/run_master_sample_ios.py
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-render"
+          "$RUNNER_TEMP/apple-render" --output
+          "$RUNNER_TEMP/apple-render" --metadata
+          "$RUNNER_TEMP/apple-render"
+
       - name: Apple spatial state regression
         run: |
           clang -std=c99 -Os -Wall -Wextra -Wpedantic tests/spatial_regression.c -lm -o "$RUNNER_TEMP/apple-spatial"

@@ -51,6 +51,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--source", type=Path, default=ROOT)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--driver", type=Path, help="Additional host driver, after fixtures with renamed main")
     p.add_argument("--optimization", choices=["-Os", "-O3", "-O0"], default="-Os")
     args = p.parse_args()
     source_root = args.source.resolve()
@@ -81,18 +82,28 @@ static uint64_t synth_host_seed_clock(void) { return 1; }
 '''
     for header in ["synth_core", "synth_effects", "synth_held", "synth_retrigger", "synth_modulation", "synth_spatial", "synth_stats", "synth_transport"]:
         imports += '#include "' + str(source_root / "shared" / (header + ".h")) + '"\n'
+    if (source_root / "shared/synth_output.h").exists():
+        imports += '#include "' + str(source_root / "shared/synth_output.h") + '"\n'
     imports += '#import "' + str(source_root / "ios/Classes/TiSynthengineContract.h") + '"\n'
+    # Run the exact production start profile-selection block, including its default.
+    start = source_path.read_text().split('- (NSNumber *)start:(id)args', 1)[1]
+    validation = start[start.index('  if (![self acceptValidation:'):start.index('  if (audioEngine != nil)')]
+    selection = start[start.index('  mixingProfile = MIXING_PROFILE_CONSERVATIVE;'):start.index('  audioSessionCategory =')]
+    methods.append('- (NSNumber *)configureStart:(NSDictionary *)options {\n' + validation + selection + '\nreturn @YES;\n}')
     declarations = "\n".join(m[:m.index("{")].strip() + ";" for m in methods)
     if has_event_poll:
         imports += "#define SYNTH_HOST_HAS_EVENT_POLL 1\n"
         declarations += "\n- (void)fireEvent:(NSString *)name withObject:(NSDictionary *)event;"
         methods.append("- (void)fireEvent:(NSString *)name withObject:(NSDictionary *)event { (void)name; (void)event; }")
+    driver = (ROOT / "tests/ios_render_host.m").read_text()
+    if args.driver:
+        driver = '#define main pipeline_fixture_main\n' + driver + '\n#undef main\n' + args.driver.read_text()
     generated = (imports + prefix + "\n@interface RenderRig : NSObject { @public\n" + ivars +
                  "\n}\n" + declarations + "\n- (OSStatus)render:(AVAudioFrameCount)frameCount output:(AudioBufferList *)outputData;\n@end\n" +
                  "@implementation RenderRig\n" + "\n".join(methods) +
                  "\n- (OSStatus)render:(AVAudioFrameCount)frameCount output:(AudioBufferList *)outputData {\n" +
                  "__unsafe_unretained RenderRig *module=self; BOOL *isSilence=NULL; const AudioTimeStamp *timestamp=NULL;\n" + block +
-                 "\n}\n@end\n" + (ROOT / "tests/ios_render_host.m").read_text())
+                 "\n}\n@end\n" + driver)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     generated_path = args.output.with_suffix(".m")
     generated_path.write_text(generated)
@@ -104,7 +115,9 @@ static uint64_t synth_host_seed_clock(void) { return 1; }
         "source": str(source_path), "sourceSha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
         "contractSha256": hashlib.sha256((source_root / "ios/Classes/TiSynthengineContract.m").read_bytes()).hexdigest(),
         "generatedSourceSha256": hashlib.sha256(generated_path.read_bytes()).hexdigest(),
-        "driverSha256": hashlib.sha256((ROOT / "tests/ios_render_host.m").read_bytes()).hexdigest(),
+        "driver": str(args.driver.resolve()) if args.driver else str(ROOT / "tests/ios_render_host.m"),
+        "driverSha256": hashlib.sha256((args.driver or ROOT / "tests/ios_render_host.m").read_bytes()).hexdigest(),
+        "fixtureSha256": hashlib.sha256((ROOT / "tests/ios_render_host.m").read_bytes()).hexdigest(),
         "sharedSha256": {h.name: hashlib.sha256(h.read_bytes()).hexdigest() for h in sorted((source_root / "shared").glob("*.h"))},
         "command": command, "binarySha256": hashlib.sha256(args.output.read_bytes()).hexdigest(),
         "scope": "Actual Apple ObjC render body/helpers on macOS. No AVAudioEngine, session, Titanium bridge or device output.",
