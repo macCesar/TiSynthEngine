@@ -325,7 +325,7 @@ synth.stopSequence({ sequenceId: musicId })
 
 ## `setMasterProcessing(options)`
 
-Selected audio follows fixed input gain → chorus → ping-pong delay → reverb → master volume → optional saturation. Dry audio receives the same global input/master gains, then recombines before one final lookahead limiter. Independent notes never trigger voice-count normalization. The limiter remains the final protection.
+Selected audio follows fixed input gain → chorus → ping-pong delay → reverb → master volume → optional saturation. Dry audio receives the same global input/master gains, then recombines before one final sample-peak protector with no retained samples. Independent notes never trigger voice-count normalization. The limiter remains the final protection.
 
 Requires a running engine and returns Boolean acceptance. Partial updates merge into the last accepted processing configuration, validate the complete result and publish atomically. Continuous controls ramp over 10 ms. Unknown fields, numeric booleans and non-finite values reject the whole edit. Detect method presence before use.
 
@@ -581,7 +581,7 @@ Returns a new snapshot without resetting counters. Available before start and af
 | `limiterReductionDb`       | Maximum limiter attenuation in that window, as a positive dB magnitude.                                                                 |
 | `underrunCount`            | Android Oboe accumulated backend xruns since reset/start when supported; otherwise `null`.                                              |
 | `bufferFrames`             | Android Oboe output buffer size; otherwise `null`. This is distinct from `callbackFrames`.                                              |
-| `estimatedOutputLatencyMs` | Android timestamp-based stream-to-DAC estimate plus module lookahead, when valid; otherwise `null` (always `null` on this iOS backend). |
+| `estimatedOutputLatencyMs` | Android timestamp-based stream-to-DAC estimate, when valid; otherwise `null` (always `null` on this iOS backend). |
 
 `renderLoad`, `peakRenderLoad`, `outputPeakDbFS`, `outputRmsDbFS`, `preLimiterPeakDb`, `maxLimiterReductionDb` and `limiterReductionDb` are `null` until enabled and measured, and after shutdown. Android backend metrics (`underrunCount`, `bufferFrames` and `estimatedOutputLatencyMs`) are best-effort readings independent of this diagnostic switch. Signal windows use the final output after master volume, limiter and clamping, with a silence floor of -120 dBFS. A query does not start or consume a window. iOS does not expose a trustworthy underrun count or hardware output buffer size through this source-node backend, so those fields are `null`. Android preserves supported xrun totals across stream recovery and resets the baseline with `resetStats()`. If a route makes xrun coverage unavailable, the count stays `null` until reset/start restores a measurable window. The latency estimate excludes command/scheduler delay and any external DAC/HDMI latency unknown to Android. Timestamp errors, unsupported backends and negative estimates return `null`. It is queried off the audio callback. A zero underrun count does not prove clean sound. Render load includes elapsed callback work, not total app CPU.
 

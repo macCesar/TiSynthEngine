@@ -24,7 +24,7 @@ The native engine provides:
 
 `build.gradle` resolves Oboe 1.11.0 through Prefab and extends Titanium's generated `Android.mk`. Supported ABIs are `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`. The packaged AAR requires compile API 35 or newer and can be used by Titanium 13.2.0 projects.
 
-`src/ti/synthengine/SynthDsp.java` is the host-testable mixing and limiter reference. The runtime renderer is in `jni/SynthOboeEngine.cpp`.
+The runtime renderer is in `jni/SynthOboeEngine.cpp`; master ramps and final sample protection use `shared/synth_output.h`. `SynthDsp.java` is a historical Java model retained for its own tests and profile constants, not a production audio oracle. Run `python3 tests/run_native_hosts.py` from the repository root to exercise the actual callback with cached Oboe 1.11.0 headers and a JDK. Profile selection is checked by `python3 tests/run_start_profiles.py`.
 
 ## Host tests
 

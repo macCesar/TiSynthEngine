@@ -66,7 +66,7 @@ The panel shows active/peak/spatial/tail voices, pending commands, replacements,
 
 Render load divides callback elapsed time by the audio budget for that block; it does not measure total app CPU. The panel multiplies the native fraction by 100, so a reading of 1.20% means that fraction of the block budget, not 120%.
 
-Even with zero voices, the stream renders silent blocks and runs the output/limiter and any enabled diagnostics. Expect a small, changing baseline. The two decimal places are display formatting and do not guarantee that precision.
+The shared final output stage retains zero samples. Master volume changes use a linear 10 ms ramp; overload can audibly change the mix. Even with zero voices, the stream renders silent blocks and runs output protection and any enabled diagnostics. Expect a small, changing baseline. The two decimal places are display formatting and do not guarantee that precision.
 
 Compare readings on the same device with the same configuration and load; simulator and phone readings are not equivalent. Android backend metrics are best-effort. This iOS backend has no underrun/buffer/latency measurement, and a clean counter cannot establish sound quality.
 

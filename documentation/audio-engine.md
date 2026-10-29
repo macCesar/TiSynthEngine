@@ -19,7 +19,7 @@ playTone / playChord / noteOn     playSequence / updateSequence
         master -> optional saturation       master
                    \                         /
                      stereo recombination
-                  one final lookahead limiter
+                  one final sample-peak protector
                       floating-point output
 ```
 
@@ -114,17 +114,19 @@ A single stereo-linked peak limiter sits after master volume and optional creati
 
 | Parameter | Value                            |
 | --------- | -------------------------------- |
-| Lookahead | 10 ms                            |
+| Retained samples | 0 (no lookahead)          |
 | Release   | 100 ms, exponential              |
 | Ceiling   | 0.85, or 0.70 with `speakerSafe` |
 
-Lookahead gives the gain time to reach a safe value before the peak reaches the output. Below the ceiling, the limiter converges back to unity. It catches exceptional sums without normalizing every callback.
+The shared `synth_output.h` core finds the larger absolute channel value for each stereo frame and immediately applies any required reduction to both channels. Recovery toward unity uses a 100 ms exponential constant, bounded by the current frame's required gain; two consecutive quiet stereo frames (each channel ≤1e-12 in magnitude) reset reduction; an isolated zero crossing does not. There is no audio delay buffer. The ceilings bound sample values, not inter-sample peaks or loudspeaker excursion.
+
+A mix below the ceiling is unchanged when protection is at unity. Overload changes the waveform, and the recovery can attenuate later quiet samples. This protection does not promise equal loudness for one and 32 voices or transparency under deliberate overload.
 
 Overlapping events can trigger audible limiting when their sum exceeds the ceiling. Check the accumulated reduction measurement before attributing a volume dip to this protection: repeated same-pitch oscillators can also cancel one another even below the ceiling. Compatible public sustained-note repetitions preserve the phase of a releasing predecessor while retaining separate envelopes and tails. Timed calls, transport notes and simultaneous held unisons keep their existing phase policy.
 
 ## Master volume and pan
 
-`setVolume()` ramps the master to avoid a discontinuous gain step. Per-event `volume` is multiplied before the bus. Values up to 2 are valid, but values above 1 use headroom and make limiting more likely.
+`setVolume()` uses the same linear 10 ms ramp on both platforms, independently of peak protection. The next processed sample takes the first step and the last reaches the destination exactly (`round(sampleRate * 0.010)` frames). A new target starts a fresh ramp from the current gain. Per-event `volume` is multiplied before the bus. Values up to 2 are valid, but values above 1 use headroom and make limiting more likely.
 
 Pan uses equal-power coefficients. A centered sound feeds both channels; the sum does not simply double. `panEnd` interpolates the position across a tone or sequence note. Chords use `panSpread` or the explicit `pans` array.
 
@@ -144,7 +146,7 @@ Both ports use a 128-slot single-consumer ring buffer. Producers are serialized 
 
 ## Shared DSP core
 
-The envelope, the state-variable filter, the sweep helpers, the FM sine and the cents conversion live once, in `shared/synth_core.h`. It is plain C, header-only and allocation-free. The Android renderer includes it from `android/jni/SynthOboeEngine.cpp` and the iOS renderer from `ios/Classes/TiSynthengineModule.m`, so both platforms run the same code. Backend voice integration, mixing and the limiter remain separate per platform. Held envelopes/ramps, transport, master effects, extra modulation and compatible retrigger support also have shared C cores.
+The envelope, the state-variable filter, the sweep helpers, the FM sine and the cents conversion live once, in `shared/synth_core.h`. It is plain C, header-only and allocation-free. The Android renderer includes it from `android/jni/SynthOboeEngine.cpp` and the iOS renderer from `ios/Classes/TiSynthengineModule.m`, so both platforms run the same code. Backend voice integration and mixing remain separate per platform. Master ramps and final stereo protection share `shared/synth_output.h`. Held envelopes/ramps, transport, master effects, extra modulation and compatible retrigger support also have shared C cores.
 
 ## Android implementation
 
@@ -164,11 +166,9 @@ The module targets iOS 15 or newer. The module archive contains device, simulato
 
 ## Latency
 
-End-to-end latency contains three main pieces:
+The final output stage retains zero samples, removing the previous mandatory 10 ms lookahead. End-to-end latency still includes the hardware and operating-system output buffers, route transport (including Bluetooth), and JavaScript publication plus callback-boundary latency for a newly submitted event. Accepted sequence steps then follow the sample clock. Attack envelopes and spatial/effect processing retain their existing timing.
 
-1. The fixed 10 ms limiter lookahead.
-2. The hardware and operating-system output buffer.
-3. JavaScript publication and callback-boundary latency for a newly submitted event; accepted sequence steps then follow the sample clock.
+Android reports a valid timestamp-based stream-to-DAC estimate without adding the former lookahead. Unavailable estimates remain `null`; this iOS backend continues to report `null`.
 
 Immediate calls are suitable for interface and game feedback. A visual or musical event that must align to a known future time should be scheduled ahead by the app instead of relying on a JavaScript callback at that instant.
 
@@ -256,7 +256,7 @@ The iOS renderer uses the same DSP header. Its actual Objective-C render body ha
 
 Spatial voice-steal and stop tails copy the filter history as well as oscillator state. After the source envelope or fade ends, both ports drain the FIR with zero input for `taps - 1` samples before freeing the voice; this preserves even 1 ms events. Ordinary voices bypass the FIR. CPU cost grows with spatial voices, including short replacement tails. Spatial held updates prepare coefficients outside audio, then ramp the FIR over 10 ms while retaining history. The intended output-rate range is 8 to 192 kHz. Interpolated generic HRTFs provide directional cues, but localization varies by listener.
 
-Android ARM64 reuses coefficients across eight consecutive samples, with four-sample and streaming fallbacks for partial blocks and position ramps. Tiles stop before native sequence attacks and retain per-sample clocks, gates, phase, history and mixing order. Apple retains its original streaming renderer. The proposed Apple adaptation was bit exact and faster in host/binaural tests but was removed after a reproducible physical stereo timing regression. Output buffers and lookahead latency are unchanged.
+Android ARM64 reuses coefficients across eight consecutive samples, with four-sample and streaming fallbacks for partial blocks and position ramps. Tiles stop before native sequence attacks and retain per-sample clocks, gates, phase, history and mixing order. Apple retains its original streaming renderer. The proposed Apple adaptation was bit exact and faster in host/binaural tests but was removed after a reproducible physical stereo timing regression. That historical optimization left output buffering unchanged. The later audio-pipeline correction removes final limiter lookahead on both platforms.
 
 ## Own-platform performance verification
 
@@ -316,7 +316,7 @@ c++ -std=c++17 -O2 -Wall -Wextra -pthread tests/stats_regression.cpp -o /tmp/sta
 python3 tests/run_stats_java.py
 ```
 
-`tests/stats_engine_host.cpp` uses the Oboe/JDK host flags shown above. It tests native occupancy, reset while playing, saturated queues, binaural drain, shutdown and exact output equality with diagnostics enabled/disabled. This native integration harness requires local Oboe headers; portable shared tests and the stopped-engine Java API tests also run in CI. iOS builds use the same telemetry core, but host Android renders do not execute the iOS audio callback.
+`tests/stats_engine_host.cpp` uses the Oboe/JDK host flags shown above. It tests native occupancy, reset while playing, saturated queues, binaural drain, shutdown and exact output equality with diagnostics enabled/disabled. CI obtains Oboe 1.11.0 headers and runs this native integration harness alongside the portable shared tests and stopped-engine Java API tests. iOS builds use the same telemetry core, but host Android renders do not execute the iOS audio callback.
 
 `tests/stats_benchmark_host.cpp` extends the spatial replay harness with silence, one/32 voices, replacement pressure, chords, scheduled note publications and short FIR drains in stereo/binaural. Build it twice with identical `-O3` flags: once against the previous engine using `-DSTATS_BASELINE`, and once against the current engine. Run `python3 tools/benchmark_stats.py BASELINE CURRENT` for one warmup and ten alternating trials/configuration, including current snapshots at 5 Hz. The harness verifies identical output hashes across all modes. The [measured comparison and limitations](stats-performance.md) explain what the host percentages establish and which results still require device tests.
 
@@ -339,7 +339,7 @@ Pre-limiter peak and maximum limiter reduction accumulate natively until reset, 
 
 Portable checks: compile and run `tests/sequence_core_regression.c`, `tests/effects_core_regression.c` and `tests/modulation_core_regression.c` with C11, optimization and libm. The transport test checks ten minutes at five sample rates against calculated event times, plus edits, swing, rests, chords and publication pressure. Effects tests check bypass, tails, panic, automation, memory and stability at 16, 44.1, 48, 96 and 192 kHz. On macOS, `tests/studio_contract_ios.m` validates the new iOS configuration contract without Titanium.
 
-`tools/calibrate_studio.py --studio-root PATH` renders Studio presets through the native Android callback at maximum master gain with new effects and modulation disabled. It measures eight independent notes, coherent unisons and repeated attacks with release overlap across low, middle and high registers, then adjusts only a fixed preset gain. The target is at most -6 dBFS before the limiter and at most 0.1 dB limiter reduction; this does not promise zero reduction for arbitrary 32-voice combinations. The report records each scenario before and after calibration. Listening and device performance remain separate acceptance checks.
+`tools/calibrate_studio.py --studio-root PATH` measures the production Android callback; add `--platform ios` for the production Apple callback. The report covers each preset/scenario at 1, 2, 4, 8, 16 and 32 voices, including independent low/mid/high notes, grouped chords, coherent unisons and overlapping releases. Recommendations target −6 dBFS before protection (with 0.01 dB margin) using the maximum measured peak of the declared usual 1-8-voice configuration and the public voice-volume limit. Larger workloads are separate stress diagnostics. The tool reports fixed scalar recommendations and never edits Studio. Effects and new LFOs are disabled, so recommendations do not guarantee headroom for other configurations. See [audio pipeline validation](audio-pipeline-validation.md).
 
 Device feedback superseded that headroom target for Studio's initial Cristal preset: its fixed gain is restored to 1 because the calibrated setting made a fresh Android installation barely audible. This adds 10.83 dB without saturation or voice-count normalization. Three coherent factory notes remain below the limiter ceiling at maximum master; eight independent coherent notes can require limiting. The calibration recommendations remain recorded separately from this active preset exception.
 

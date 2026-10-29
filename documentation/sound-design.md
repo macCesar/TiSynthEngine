@@ -293,7 +293,7 @@ Choose the profile once in `start()`:
 | `speakerSafe`  | Lower source gain and a 0.70 ceiling for small speakers.          |
 | `raw`          | Full source gain; useful only when the app owns all gain staging. |
 
-Protected profiles calibrate source gain by waveform and event voice count. The final stereo-linked limiter catches exceptional peaks with 10 ms of lookahead and a 100 ms release. Its ceiling is 0.85, or 0.70 for `speakerSafe`.
+Protected profiles calibrate source gain by waveform and event voice count. The final stereo-linked sample protector applies immediate reduction with no retained samples and a 100 ms exponential recovery. Overload changes the waveform; fixed per-event gain and chord compensation remain unchanged. Its ceiling is 0.85, or 0.70 for `speakerSafe`.
 
 The limiter protects against peaks. If it engages on every note, lower event volume or choose a more conservative profile instead of using it to raise loudness. Repeatedly starting the same long sound before its previous release ends raises and lowers the sum, which can produce audible pumping. That overlap is useful as a stress test, but it is a poor reference for the tone's normal quality.
 
