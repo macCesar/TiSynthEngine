@@ -2,7 +2,7 @@
 
 TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
 
-The module id is `ti.synthengine`. The current Android and iOS packages are version `1.0.1`; both retain the public API version `1.0.0`.
+The module id is `ti.synthengine`. The current Android and iOS packages are version `1.0.2`; both retain the public API version `1.0.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
 
 ## What it is for
 
@@ -35,21 +35,21 @@ The [documentation index](documentation/index.md) connects all guides. Start wit
 
 ## Install
 
-Download the platform-specific packages from [Android 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.1) and [iOS 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.1), then copy both archives into the Titanium app root:
+Download the platform-specific packages from [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2), then copy both archives into the Titanium app root:
 
-- `ti.synthengine-android-1.0.1.zip`
-- `ti.synthengine-iphone-1.0.1.zip`
+- `ti.synthengine-android-1.0.2.zip`
+- `ti.synthengine-iphone-1.0.2.zip`
 
 Declare both platform modules in `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.1">ti.synthengine</module>
-  <module platform="iphone" version="1.0.1">ti.synthengine</module>
+  <module platform="android" version="1.0.2">ti.synthengine</module>
+  <module platform="iphone" version="1.0.2">ti.synthengine</module>
 </modules>
 ```
 
-The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.0.1/` during the next build.
+The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.0.2/` during the next build.
 
 ## Quick start
 
@@ -428,13 +428,13 @@ The profile is chosen in `start()` and stays fixed until `shutdown()`.
 | `speakerSafe`  |           0.311 |            0.70 | Small speakers, low pitches or device-side acoustic distortion. |
 | `raw`          |           1.000 |            0.85 | App-managed gain staging and controlled tests.                  |
 
-Protected profiles calibrate waveform RMS and divide chord gain by the square root of its voice count. A stereo-linked 10 ms lookahead limiter catches peaks that still exceed the ceiling. It is transparent below that threshold.
+Protected profiles calibrate waveform RMS and divide chord gain by the square root of its voice count. A stereo-linked sample-peak protector immediately reduces peaks above the ceiling, adding no sample retention. Gain recovers with a 100 ms exponential constant and resets after two consecutive quiet stereo frames (≤1e-12), preserving recovery across isolated zero crossings. An unattenuated mix below the ceiling is unchanged; deliberate overload changes its waveform.
 
 Start with `conservative`. If a small phone speaker sounds harsh while headphones remain clean, try `speakerSafe` and raise low pitches before adding more limiting.
 
 ## Master volume
 
-`setVolume({ volume })` scales the whole mix and ramps changes over about 10 ms. Values up to 2 are accepted, though values above 1 make limiting more likely.
+`setVolume({ volume })` scales the whole mix and ramps changes linearly over 10 ms on both platforms, starting on the next processed sample and reaching the destination exactly. Values up to 2 are accepted, though values above 1 make limiting more likely.
 
 ## Audio route changes
 

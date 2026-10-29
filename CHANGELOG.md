@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+## [1.0.2] - 2026-10-29
+
+### Fixed
+
+- Apply the documented `raw` mixing profile on iOS. It previously retained the conservative source gain; review gain staging in apps that request `raw`.
+- Use the same linear 10 ms master-volume ramp on Android and iOS. Each change starts on the next processed sample and reaches its destination exactly.
+
+### Changed
+
+- Remove the mandatory 10 ms final-output lookahead on both platforms. Shared stereo protection reduces sample peaks immediately and recovers with a 100 ms exponential time constant. Sample ceilings remain 0.85, or 0.70 for `speakerSafe`; overload changes the waveform.
+- Report Android stream latency without the removed lookahead. Unavailable estimates remain `null`.
+- Run host regressions against production callbacks and startup profile selection. Keep the Java DSP model for its own historical tests.
+- Measure calibration results per preset and scenario at 1, 2, 4, 8, 16 and 32 voices on both renderers. Fixed-gain recommendations target -6 dBFS for the measured 1-to-8-voice configuration; larger workloads remain separate stress results. The tool preserves app presets.
+
+Public methods, event gains, waveform profiles and chord compensation remain unchanged. The Android startup underrun remains unresolved and is reproducible with an independent Oboe callback that writes silence. See [validation and compatibility](documentation/audio-pipeline-validation.md) for measurements, device checks and remaining limits.
+
 ## [1.0.1] - 2026-10-29
 
 ### Changed
