@@ -7,14 +7,17 @@
 struct CalibrationPreset { const char *id; Command command; };
 #include CALIBRATION_PRESETS_HEADER
 struct Measurement { double peakDb=-120, reductionDb=0, outputPeak=0; };
-static Measurement calibrationScenario(const CalibrationPreset &preset,double gain,int scenario) {
-    Rig r(32,1);r.e().setVolume(2);r.e().smoothedMaster_=2;
-    r.e().enableStats(true);
-    auto render=[&](int frames) { auto output=r.render(frames); return peak(output); };
+static Measurement calibrationScenario(const CalibrationPreset &preset,int count,int scenario) {
+    Rig r(32,1);r.e().setVolume(2);r.render(48000);r.e().enableStats(true);
     Measurement m;
-    auto on=[&](int id,int midi) {
-        Command c=preset.command;c.type=SYNTH_CMD_HELD_ON;c.voiceId=id;c.eventVoiceCount=1;
-        c.volume*=gain;c.frequency=440*std::exp2((midi-69)/12.0);
+    auto render=[&](int frames) {m.outputPeak=std::max(m.outputPeak,peak(r.render(frames)));};
+    const int offsets[]={0,2,4,5,7,9,11,12};
+    auto on=[&](int id) {
+        Command c=preset.command;c.type=SYNTH_CMD_HELD_ON;c.voiceId=id;
+        c.eventVoiceCount=scenario==3?count:1;
+        int base=scenario==0?12:scenario==2?100:48;
+        int midi=scenario==4?60:std::min(127,base+offsets[(id-1)%8]+12*((id-1)/8));
+        c.frequency=440*std::exp2((midi-69)/12.0);
         assert(!r.e().enqueue(c));r.e().processCommands();
         for(auto &v:r.e().voices_)if(v.active&&v.held.voiceId==id) {
             v.noise=uint64_t(id)*6364136223846793005ULL+1442695040888963407ULL;
@@ -22,33 +25,14 @@ static Measurement calibrationScenario(const CalibrationPreset &preset,double ga
         }
     };
     auto release=[&](int id) {Command c;c.type=SYNTH_CMD_HELD_OFF;c.voiceId=id;assert(!r.e().enqueue(c));};
-    if(scenario<5) {
-        const int bases[]={12,48,100,60,36};
-        const int offsets[]={0,2,4,5,7,9,11,12};
-        for(int i=0;i<8;i++)on(i+1,bases[scenario]+(scenario==3?0:offsets[i]));
-        m.outputPeak=render(120000);
-        for(int i=1;i<=8;i++)release(i);
-        m.outputPeak=std::max(m.outputPeak,render(static_cast<int>(preset.command.release)+4800));
-    } else {
-        // Eight distinct note IDs at 50 ms spacing, each held for 200 ms.
-        // Releasing an older ID does not affect subsequent repetitions.
-        for(int event=0;event<12;event++) {
-            if(event>=4)release(event-3);
-            if(event<8)on(event+1,scenario==5?60:24);
-            m.outputPeak=std::max(m.outputPeak,render(2400));
-        }
-        m.outputPeak=std::max(m.outputPeak,render(static_cast<int>(preset.command.release)+4800));
-    }
+    if(scenario==5) {
+      // Repeated distinct IDs leave older releases overlapping newer attacks.
+      for(int id=1;id<=count;id++){on(id);render(2400);release(id);}
+    }else{for(int id=1;id<=count;id++)on(id);render(120000);for(int id=1;id<=count;id++)release(id);}
+    render(static_cast<int>(preset.command.release)+4800);
     m.peakDb=r.e().stats_.values[ST_PRE_LIMITER_PEAK];
     m.reductionDb=r.e().stats_.values[ST_MAX_REDUCTION];
-    assert(std::isfinite(m.peakDb)&&std::isfinite(m.reductionDb));
-    return m;
-}
-static Measurement calibrationSuite(const CalibrationPreset &preset,double gain) {
-    Measurement m;for(int scenario=0;scenario<7;scenario++) {
-        auto x=calibrationScenario(preset,gain,scenario);
-        m.peakDb=std::max(m.peakDb,x.peakDb);m.reductionDb=std::max(m.reductionDb,x.reductionDb);m.outputPeak=std::max(m.outputPeak,x.outputPeak);
-    }return m;
+    assert(std::isfinite(m.peakDb)&&std::isfinite(m.reductionDb));return m;
 }
 static void publishEffects(Rig &r,const SynthEffectsConfig &effects) {
     Command command;command.type=8;command.effects=effects;
@@ -111,14 +95,17 @@ static int renderBenchmark(void) {
 }
 int main(int argc,char **) {
     if(argc>1)return renderBenchmark();
+    const char *names[]={"independentLow","independentMid","independentHigh","groupedChord","unison","overlappingReleases"};
     for(const auto &preset:calibrationPresets()) {
-        auto raw=calibrationSuite(preset,1);
-        // Fixed scalar only, including quiet presets. Respect native volume2
-        // so calibration never depends on clamping away a larger volume.
-        double gain=std::min(2./std::max(1e-9,preset.command.volume),std::pow(10.,(-6.01-raw.peakDb)/20.));
-        auto calibrated=calibrationSuite(preset,gain);
-        std::printf("{\"id\":\"%s\",\"gain\":%.12g,\"rawPeakDb\":%.9g,\"rawReductionDb\":%.9g,\"peakDb\":%.9g,\"reductionDb\":%.9g,\"outputPeak\":%.9g}\n",preset.id,gain,raw.peakDb,raw.reductionDb,calibrated.peakDb,calibrated.reductionDb,calibrated.outputPeak);
-        std::fflush(stdout);
-        if(calibrated.peakDb> -6+1e-6||calibrated.reductionDb>.1+1e-6)return 1;
+      double typicalPeak=-120;
+      printf("{\"id\":\"%s\",\"scenarios\":[",preset.id);bool first=true;
+      for(int count:{1,2,4,8,16,32})for(int scenario=0;scenario<6;scenario++) {
+        auto m=calibrationScenario(preset,count,scenario);
+        bool typical=count<=8;if(typical)typicalPeak=std::max(typicalPeak,m.peakDb);
+        double gain=std::min(2./std::max(1e-9,preset.command.volume),std::pow(10.,(-6.01-m.peakDb)/20.));
+        printf("%s{\"name\":\"%s\",\"voices\":%d,\"typical\":%s,\"prePeakDb\":%.9g,\"reductionDb\":%.9g,\"outputPeak\":%.9g,\"recommendedGain\":%.12g}",first?"":",",names[scenario],count,typical?"true":"false",m.peakDb,m.reductionDb,m.outputPeak,gain);first=false;
+      }
+      double gain=std::min(2./std::max(1e-9,preset.command.volume),std::pow(10.,(-6.01-typicalPeak)/20.));
+      printf("],\"typicalPeakDb\":%.9g,\"gain\":%.12g}\n",typicalPeak,gain);fflush(stdout);
     }
 }

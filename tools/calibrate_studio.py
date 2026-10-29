@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Measure fixed preset gains against the native Android render callback.
+"""Measure fixed preset gains against production Android or Apple render callbacks.
 
-Requires clang++, Node, a JDK and locally cached Oboe headers. No app files are
+Requires macOS/clang and Node; Android also needs a JDK and cached Oboe headers. No app files are
 modified. Effects and the two new modulators are disabled for calibration;
 existing vibrato, ADSR, oscillator and filter settings are preserved.
 """
@@ -12,6 +12,8 @@ import math
 import pathlib
 import subprocess
 import tempfile
+
+TOOL_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def generated_presets(presets):
@@ -58,6 +60,7 @@ def main():
     parser.add_argument('--studio-root', type=pathlib.Path, required=True)
     parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('/tmp/studio-calibration.json'))
     parser.add_argument('--oboe-include', type=pathlib.Path)
+    parser.add_argument('--platform',choices=['android','ios'],default='android')
     parser.add_argument('--benchmark', action='store_true', help='Measure 32 binaural voices, two LFOs and every effect instead of preset calibration')
     parser.add_argument('--bypass-report', type=pathlib.Path, help='Attach a matched-source bypass comparison to the benchmark report')
     parser.add_argument('--preset', action='append', help='Measure only named preset IDs; may be repeated')
@@ -66,12 +69,12 @@ def main():
     oboe = args.oboe_include
     if oboe is None:
         oboe = next(pathlib.Path.home().joinpath('.gradle/caches').glob('**/oboe-*/prefab/modules/oboe/include'), None)
-    if oboe is None:
+    if oboe is None and args.platform=='android':
         raise SystemExit('Oboe headers not found; pass --oboe-include')
-    java_home = pathlib.Path(subprocess.check_output(['/usr/libexec/java_home'], text=True).strip())
+    java_home = pathlib.Path(subprocess.check_output(['/usr/libexec/java_home'], text=True).strip()) if args.platform=='android' else None
     javascript = '''const s=require(process.argv[1]);
 const W={SINE:0,SQUARE:1,SAWTOOTH:2,TRIANGLE:3,NOISE:4,WAVETABLE:5};
-console.log(JSON.stringify(s.bank(W).map(p=>{const state=Object.assign({},p.state,{presetGain:1,modulations:[]});return {id:p.id,voice:s.voiceOptions(state,60,W)};})));'''
+console.log(JSON.stringify(s.bank(W).concat(s.demos(W),s.showcase(W)).map(p=>{const state=Object.assign({},p.state,{presetGain:1,modulations:[]});return {id:p.id,voice:s.voiceOptions(state,60,W)};})));'''
     studio = args.studio_root.resolve() / 'app/lib/studio.js'
     presets = json.loads(subprocess.check_output(['node', '-e', javascript, str(studio)], text=True))
     if args.preset:
@@ -83,16 +86,40 @@ console.log(JSON.stringify(s.bank(W).map(p=>{const state=Object.assign({},p.stat
         header = work / 'presets.h'
         header.write_text(generated_presets(presets))
         binary = work / 'calibration'
-        command = ['clang++', '-std=c++17', '-O2', '-Wall', '-Wextra',
-                   '-I' + str(oboe), '-I' + str(java_home / 'include'),
-                   '-I' + str(java_home / 'include/darwin'), '-DHAS_EXPRESSIVE',
-                   '-DENGINE_CPP="../android/jni/SynthOboeEngine.cpp"',
-                   '-DCALIBRATION_PRESETS_HEADER=' + json.dumps(str(header)),
-                   '-Wl,-undefined,dynamic_lookup', str(root / 'tests/studio_calibration_host.cpp'),
-                   '-o', str(binary)]
-        subprocess.run(command, cwd=root, check=True)
+        if args.platform=='ios':
+            if args.benchmark:raise SystemExit('Use the Apple render host benchmark for matched Apple timing')
+            fields={'duration':'durationSamples','attack':'attackSamples','decay':'decaySamples','release':'releaseSamples','wavetableSize':'wavetableSize'}
+            table=generated_presets(presets).split('std::vector<CalibrationPreset> result;',1)[1].split('return result;',1)[0]
+            entries=[]
+            import re
+            for item in re.findall(r'\{ Command c;(.*?)result.push_back\(\{(.*?),c\}\); \}',table,re.S):
+                body,name=item;body=body.replace('48000*5','240000')
+                init={"pulseWidth":".5","fmRatio":"1","filterHz":"1000","filterQ":".7071","sustain":"1"};waves={}
+                for key,value in re.findall(r'c\.([\w\[\]]+)=(.*?);',body):
+                    if key.startswith('wavetable['):waves[int(key[10:-1])]=value
+                    else:init[fields.get(key,key)]=value
+                if waves:init['wavetable']='{'+','.join(waves[i] for i in range(len(waves)))+'}'
+                entries.append('{'+name+',{'+','.join('.'+key+'='+value for key,value in init.items())+'}}')
+            assert len(entries)==len(presets)
+            header.write_text('typedef struct {const char *id;SynthCommand command;} CalibrationPreset;\nstatic CalibrationPreset calibrationPresets[]={'+','.join(entries)+'};\n')
+            driver=work/'driver.m';driver.write_text('#include "'+str(header)+'"\n'+(TOOL_ROOT/'tests/studio_calibration_ios.m').read_text())
+            subprocess.run(['python3',str(TOOL_ROOT/'tools/build_ios_render_host.py'),'--source',str(root),'--output',str(binary),'--driver',str(driver)],check=True)
+        else:
+            command = ['clang++', '-std=c++17', '-O2', '-Wall', '-Wextra',
+                       '-I' + str(oboe), '-I' + str(java_home / 'include'),
+                       '-I' + str(java_home / 'include/darwin'), '-DHAS_EXPRESSIVE',
+                       '-DENGINE_CPP=' + json.dumps(str(root/'android/jni/SynthOboeEngine.cpp')),
+                       '-DCALIBRATION_PRESETS_HEADER=' + json.dumps(str(header)),
+                       '-Wl,-undefined,dynamic_lookup', str(TOOL_ROOT / 'tests/studio_calibration_host.cpp'),
+                       '-o', str(binary)]
+            subprocess.run(command, cwd=root, check=True)
         run = subprocess.run([str(binary)] + (['--benchmark'] if args.benchmark else []), cwd=root, text=True, stdout=subprocess.PIPE)
         results = [json.loads(line) for line in run.stdout.splitlines() if line.startswith('{')]
+        artifacts=args.output.with_suffix('.sources');artifacts.mkdir(parents=True,exist_ok=True)
+        import shutil
+        for source in work.iterdir():
+            if source.suffix in ('.h','.m','.json'):shutil.copy2(source,artifacts/source.name)
+        build_command=command if args.platform=='android' else json.loads(binary.with_suffix('.json').read_text())['command']
     if args.benchmark:
         if not results:
             raise SystemExit(f'Native benchmark failed without results ({run.returncode})')
@@ -128,12 +155,13 @@ console.log(JSON.stringify(s.bank(W).map(p=>{const state=Object.assign({},p.stat
         raise SystemExit(f'Native calibration failed ({run.returncode})')
     if len(results) != len(presets):
         raise SystemExit('Incomplete native calibration results')
-    report = {'sampleRate': 48000, 'masterVolume': 2, 'effectsEnabled': False,
-              'newModulationsEnabled': False, 'voices': 32, 'targetPeakDb': -6,
-              'maximumReductionDb': .1,
-              'scenarios': ['eight independent low/mid/high notes', 'eight simultaneous MIDI60 unisons',
-                            'eight independent MIDI36 chord', 'eight MIDI60/MIDI24 repeats at 50ms spacing and 200ms gate'],
-              'holdMs': 2500, 'presets': results}
+    report = {'sampleRate': 48000, 'masterVolume': 2, 'masterSettledBeforeMeasurement': True, 'effectsEnabled': False,
+              'buildCommand': build_command, 'hostDriverSha256': hashlib.sha256((TOOL_ROOT/'tests'/('studio_calibration_ios.m' if args.platform=='ios' else 'studio_calibration_host.cpp')).read_bytes()).hexdigest(),
+              'newModulationsEnabled': False, 'voiceCounts': [1,2,4,8,16,32], 'targetPeakDb': -6,
+              'recommendationScope': 'Maximum measured pre-protection peak over 1/2/4/8 voices; 16/32 retained as stress diagnostics, not used to lower every preset',
+              'recommendationPolicy': 'Fixed scalar min(2/voiceVolume, 10**((-6.01-peakDb)/20)); no automatic app edits',
+              'scenarios': ['independentLow','independentMid','independentHigh','groupedChord','unison','overlappingReleases'],
+              'holdMsByScenario': {name: 50 if name=='overlappingReleases' else 2500 for name in ['independentLow','independentMid','independentHigh','groupedChord','unison','overlappingReleases']}, 'presets': results, 'platform': args.platform, 'studioSourceSha256': hashlib.sha256(studio.read_bytes()).hexdigest(), 'rendererSha256': hashlib.sha256((root/('ios/Classes/TiSynthengineModule.m' if args.platform=='ios' else 'android/jni/SynthOboeEngine.cpp')).read_bytes()).hexdigest()}
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({row['id']: row['gain'] for row in results}, indent=2))
     print(f'Report: {args.output}')
