@@ -1337,7 +1337,9 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
       mixingProfile = MIXING_PROFILE_BALANCED;
     } else if ([profile isEqualToString:@"speakersafe"]) {
       mixingProfile = MIXING_PROFILE_SPEAKER_SAFE;
-    } else if (![profile isEqualToString:@"raw"]) {
+    } else if ([profile isEqualToString:@"raw"]) {
+      mixingProfile = MIXING_PROFILE_RAW;
+    } else {
       [self warnOnceMethod:@"start" key:@"mixingProfile"
                      reason:@"unsupported_value" value:mixingProfileValue
                      action:@"engine_not_started"];
