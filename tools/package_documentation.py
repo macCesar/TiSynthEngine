@@ -36,8 +36,10 @@ for p,source,page in zip(paths,sources,pages):
  page=re.sub(r'(href="[^"]*)\.md(?=[#"])',r'\1.html',page)
  rendered[p.relative_to(ROOT).with_suffix('.html').as_posix()]=page.encode()
 proof={}
-for plat,rel in [('android','android/dist/ti.synthengine-android-1.0.0.zip'),('iphone','ios/dist/ti.synthengine-iphone-1.0.0.zip')]:
- path=ROOT/rel;prefix=f'modules/{plat}/ti.synthengine/1.0.0/'
+for folder,plat in [('android','android'),('ios','iphone')]:
+ version=re.search(r'^version:\s*(\S+)',(ROOT/folder/'manifest').read_text(),re.M).group(1)
+ rel=f'{folder}/dist/ti.synthengine-{plat}-{version}.zip'
+ path=ROOT/rel;prefix=f'modules/{plat}/ti.synthengine/{version}/'
  with zipfile.ZipFile(path) as z:
   assert z.testzip() is None
   data={n:z.read(n) for n in z.namelist() if not n.endswith('/')}

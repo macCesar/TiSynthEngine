@@ -1,17 +1,17 @@
 # Interactive example
 
-The Classic Titanium app in [app.js](app.js) demonstrates the timed sounds, native sequences and statistics with the `sequenceend` event on Android and iOS. It uses the current 1.0.0 module packages, including binaural and statistics support. Held voices, master processing and voice LFOs have copyable examples in the [advanced documentation](../documentation/examples.md#sustained-game-motor); this reference app does not expose those newer controls. The default engine configuration is 16 voices, `conservative` mixing and the `playback` session; master volume starts at 100% and optional diagnostics start off.
+The Classic Titanium app in [app.js](app.js) demonstrates the timed sounds, native sequences and statistics with the `sequenceend` event on Android and iOS. It uses the current 1.0.1 module packages, including binaural and statistics support. Held voices, master processing and voice LFOs have copyable examples in the [advanced documentation](../documentation/examples.md#sustained-game-motor); this reference app does not expose those newer controls. The default engine configuration is 16 voices, `conservative` mixing and the `playback` session; master volume starts at 100% and optional diagnostics start off.
 
 ## Run it
 
 1. Create a Classic Titanium application with Android and/or iOS support. If the app uses Alloy, create a separate Classic test project and leave the Alloy-generated files in place.
-2. Build the current module source, or use the matching packages supplied with the public release when available. Development archives are `android/dist/ti.synthengine-android-1.0.0.zip` and `ios/dist/ti.synthengine-iphone-1.0.0.zip`. The existing private release is a separate snapshot and may lack current features.
+2. Build the current module source, or use the matching packages supplied with the public release when available. Development archives are `android/dist/ti.synthengine-android-1.0.1.zip` and `ios/dist/ti.synthengine-iphone-1.0.1.zip`. The existing private release is a separate snapshot and may lack current features.
 3. Put the archive for each target platform in the test app root. Add these entries inside its `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.0">ti.synthengine</module>
-  <module platform="iphone" version="1.0.0">ti.synthengine</module>
+  <module platform="android" version="1.0.1">ti.synthengine</module>
+  <module platform="iphone" version="1.0.1">ti.synthengine</module>
 </modules>
 ```
 

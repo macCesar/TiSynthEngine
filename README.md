@@ -2,7 +2,7 @@
 
 TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
 
-The module id is `ti.synthengine`. Version `1.0.0` is the initial official release for Android and iOS.
+The module id is `ti.synthengine`. The current Android and iOS packages are version `1.0.1`; both retain the public API version `1.0.0`.
 
 ## What it is for
 
@@ -35,21 +35,21 @@ The [documentation index](documentation/index.md) connects all guides. Start wit
 
 ## Install
 
-Download the platform-specific packages from [Android 1.0.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.0) and [iOS 1.0.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.0), then copy both archives into the Titanium app root:
+Download the platform-specific packages from [Android 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.1) and [iOS 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.1), then copy both archives into the Titanium app root:
 
-- `ti.synthengine-android-1.0.0.zip`
-- `ti.synthengine-iphone-1.0.0.zip`
+- `ti.synthengine-android-1.0.1.zip`
+- `ti.synthengine-iphone-1.0.1.zip`
 
 Declare both platform modules in `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.0">ti.synthengine</module>
-  <module platform="iphone" version="1.0.0">ti.synthengine</module>
+  <module platform="android" version="1.0.1">ti.synthengine</module>
+  <module platform="iphone" version="1.0.1">ti.synthengine</module>
 </modules>
 ```
 
-The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.0.0/` during the next build.
+The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.0.1/` during the next build.
 
 ## Quick start
 

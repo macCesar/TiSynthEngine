@@ -1,8 +1,8 @@
 # TiSynthEngine Android module
 
-This folder contains the Android implementation of `ti.synthengine` 1.0.0. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
+This folder contains the Android implementation of `ti.synthengine` 1.0.1. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
 
-Release 1.0.0 exposes the same nineteen methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [new-feature integration](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use the matching official 1.0.0 packages and rebuild consumer apps after installing a native module.
+Release 1.0.0 exposes the same nineteen methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [new-feature integration](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use the current official 1.0.1 packages and rebuild consumer apps after installing a native module.
 
 ## Runtime
 
@@ -42,6 +42,6 @@ java -cp "$test_dir" ti.synthengine.SynthContractRegression
 java -cp "$test_dir" ti.synthengine.SynthDspRegression
 ```
 
-Build the distributable module with the Titanium CLI from `android/`. The expected archive is `dist/ti.synthengine-android-1.0.0.zip`.
+Build the distributable module with the Titanium CLI from `android/`. The expected archive is `dist/ti.synthengine-android-1.0.1.zip`.
 
 Binaural HRTF data: copyright 1994 MIT Media Laboratory, measured by Bill Gardner and Keith Martin. Use is permitted with attribution. See [MIT KEMAR](https://sound.media.mit.edu/resources/KEMAR.html) and the module's third-party notices.

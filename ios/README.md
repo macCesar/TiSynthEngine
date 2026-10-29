@@ -1,8 +1,8 @@
 # TiSynthEngine iOS module
 
-This folder contains the iOS implementation of `ti.synthengine` 1.0.0. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
+This folder contains the iOS implementation of `ti.synthengine` 1.0.1. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
 
-Release 1.0.0 exposes the same nineteen methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [new-feature integration](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use the matching official 1.0.0 packages and rebuild consumer apps after installing a native module.
+Release 1.0.0 exposes the same nineteen methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [new-feature integration](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use the current official 1.0.1 packages and rebuild consumer apps after installing a native module.
 
 ## Runtime
 
@@ -24,6 +24,6 @@ The native engine provides:
 
 The module targets iOS 15 or newer. The build configuration uses Titanium SDK 13.4.1.GA. Apps using the module need Titanium SDK 13.2.0.GA or newer, as declared in the module manifest. The archive supports device, simulator and Mac Catalyst builds.
 
-Build the distributable module with the Titanium CLI from `ios/`. The expected archive is `dist/ti.synthengine-iphone-1.0.0.zip`.
+Build the distributable module with the Titanium CLI from `ios/`. The expected archive is `dist/ti.synthengine-iphone-1.0.1.zip`.
 
 Binaural HRTF data: copyright 1994 MIT Media Laboratory, measured by Bill Gardner and Keith Martin. Use is permitted with attribution. See [MIT KEMAR](https://sound.media.mit.edu/resources/KEMAR.html) and the module's third-party notices.

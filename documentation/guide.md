@@ -4,17 +4,17 @@ Install TiSynthEngine, start it after layout settles, and release its native aud
 
 ## Install the module
 
-Download both official packages from [Android 1.0.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.0) and [iOS 1.0.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.0). For source builds, the matching archives are produced under `android/dist` and `ios/dist`:
+Download both official packages from [Android 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.1) and [iOS 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.1). For source builds, the matching archives are produced under `android/dist` and `ios/dist`:
 
-- `ti.synthengine-android-1.0.0.zip`
-- `ti.synthengine-iphone-1.0.0.zip`
+- `ti.synthengine-android-1.0.1.zip`
+- `ti.synthengine-iphone-1.0.1.zip`
 
 Put the archives in the Titanium project root or install them through the Titanium CLI. Pin the same version for both platforms:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.0">ti.synthengine</module>
-  <module platform="iphone" version="1.0.0">ti.synthengine</module>
+  <module platform="android" version="1.0.1">ti.synthengine</module>
+  <module platform="iphone" version="1.0.1">ti.synthengine</module>
 </modules>
 ```
 

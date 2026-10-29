@@ -1,6 +1,6 @@
 # TiSynthEngine documentation
 
-TiSynthEngine 1.0.0 is a native tone synthesizer for Titanium on Android and iOS. It plays generated tones, held voices, chords, noise, timed patterns and sample-clock sequences, with optional native stereo effects and LFO modulation through the same JavaScript contract on both platforms.
+TiSynthEngine 1.0.1 is a native tone synthesizer for Titanium on Android and iOS. It plays generated tones, held voices, chords, noise, timed patterns and sample-clock sequences, with optional native stereo effects and LFO modulation through the same JavaScript contract on both platforms.
 
 Start with the [README](../README.md) if you have not installed the module yet. It explains the lifecycle, the nineteen public methods, the `sequenceend` event and common options.
 
