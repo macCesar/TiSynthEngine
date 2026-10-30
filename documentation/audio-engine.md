@@ -189,6 +189,7 @@ cd android
 test_dir=$(mktemp -d /tmp/ti-synth-test.XXXXXX)
 javac -d "$test_dir" \
   src/ti/synthengine/SynthContract.java \
+  src/ti/synthengine/SynthStudioContract.java \
   test/ti/synthengine/SynthContractRegression.java \
   test/ti/synthengine/SynthSpatialContractRegression.java \
   src/ti/synthengine/SynthDsp.java \
@@ -213,7 +214,7 @@ cc -std=c99 -O2 -Wall -Wextra -o "$test_dir/dsp_core" \
 
 It checks that the envelope equals the original attack, hold and release shape for every attack and release combination when decay is off, the decay and sustain endpoints and continuity, the response of each filter type (slope, cutoff and the resonance peak), stability of every filter type under a cutoff sweep on noise, FM sidebands against the Bessel function values and the cents conversion.
 
-The Android engine renders on the host. `tests/engine_render_host.cpp` compiles `SynthOboeEngine.cpp` without opening an audio stream and drives the same command and callback path Oboe uses. It needs the Oboe headers, which any Gradle cache that built the module has, and the JDK's `jni.h`, so it is a local check and does not run in CI:
+The Android engine renders on the host. `tests/engine_render_host.cpp` compiles `SynthOboeEngine.cpp` without opening an audio stream and drives the same command and callback path Oboe uses. It needs the Oboe 1.11.0 headers and the JDK's `jni.h`. The Linux job in [the test workflow](https://github.com/macCesar/TiSynthEngine/blob/main/.github/workflows/tests.yml) downloads those headers and runs this harness through `python3 tests/run_native_hosts.py`, alongside the other production Android host checks. The macOS job runs the extracted production Apple callback and start-profile checks. Host checks do not open hardware streams. To run the Android harness locally with cached headers:
 
 ```sh
 OBOE=$(find ~/.gradle -path '*oboe-1.11.0/prefab/modules/oboe/include' | head -1)

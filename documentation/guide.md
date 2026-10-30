@@ -4,17 +4,17 @@ Install TiSynthEngine, start it after layout settles, and release its native aud
 
 ## Install the module
 
-Download both official packages from [Android 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.1) and [iOS 1.0.1](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.1). For source builds, the matching archives are produced under `android/dist` and `ios/dist`:
+Download both official packages from [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2). For source builds, the matching archives are produced under `android/dist` and `ios/dist`:
 
-- `ti.synthengine-android-1.0.1.zip`
-- `ti.synthengine-iphone-1.0.1.zip`
+- `ti.synthengine-android-1.0.2.zip`
+- `ti.synthengine-iphone-1.0.2.zip`
 
 Put the archives in the Titanium project root or install them through the Titanium CLI. Pin the same version for both platforms:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.1">ti.synthengine</module>
-  <module platform="iphone" version="1.0.1">ti.synthengine</module>
+  <module platform="android" version="1.0.2">ti.synthengine</module>
+  <module platform="iphone" version="1.0.2">ti.synthengine</module>
 </modules>
 ```
 
@@ -83,7 +83,7 @@ Use one owner for the engine. Start it once, pass a small audio service to the s
 
 ## Detect required capabilities
 
-Release 1.0.0 includes held voices, sample-clock sequences, stereo effects and two optional LFOs. Require the methods used by each feature before enabling its controls:
+Public API version 1.0.0 includes held voices, sample-clock sequences, stereo effects and two optional LFOs. Require the methods used by each feature before enabling its controls:
 
 ```javascript
 function hasMethods (names) {
@@ -100,7 +100,7 @@ Start the engine successfully before publishing held notes, sequence edits or pr
 
 Use `noteOn({ voiceId, ... })` when duration follows interaction: a piano key, motor, beam, pad or the last chord of a ceremony. Allocate a unique positive integer ID per attack, and release only that ID with `noteOff`. No duration or sweep-end fields are accepted. A chord held this way consists of separate IDs; unlike one `playChord` or sequence chord, separate `noteOn` calls have independent gain and publication.
 
-`updateVoice` changes compatible pitch, volume, cutoff/Q, vibrato, PWM/FM and LFO targets with 10 ms ramps, without restarting oscillator/envelope phase. Source, table, filter type, noise clock, one-pole cutoff, ADSR and spatial position are fixed at attack. See [complete fields](api.md#updatevoiceoptions). A note that has ended or been stolen accepts updates as a no-op; there is no note-finished event or reserved slot. A `true` return means accepted publication, not proof that the sound is still active.
+`updateVoice` changes compatible pitch, volume, cutoff/Q, vibrato, PWM/FM, LFO targets, noise clock, one-pole cutoff, effect send and stereo/spatial position with 10 ms ramps, without restarting oscillator/envelope phase. Source, table, filter type, quantization, ADSR and stereo-versus-spatial mode are fixed at attack. See [complete fields](api.md#updatevoiceoptions). A note that has ended or been stolen accepts updates as a no-op; there is no note-finished event or reserved slot. A `true` return means accepted publication, not proof that the sound is still active.
 
 Release on touch end and cancellation as well as ordinary key up. Retry a rejected release twice at 16 ms outside the audio callback, then shut down and report failure if publication remains blocked. Cancel retries during teardown. The [held motor example](examples.md#sustained-game-motor) implements this ownership policy. For pause/owner close, invalidate app scheduling and shut down; require a new start before future notes.
 
@@ -131,7 +131,7 @@ The native chain is voices, fixed input gain, chorus, ping-pong delay, stereo Sc
 
 Chorus adds stereo movement, delay adds free or synchronized echoes, and reverb adds a damped tail. Saturation is optional creative drive. Select processed categories with `applyTo: ['music', 'ambience']`; a voice's explicit `effectSend` overrides that selection. One chain processes the selected share and one final limiter protects the recombined output.
 
-`setMasterProcessing` merges partial updates, validates the entire result and returns publication acceptance. Continuous controls ramp over 10 ms. Disabling an effect closes input gradually and keeps its tail, bounded to 30 seconds with a final fade, then restores exact bypass. It does not undo a non-unity input gain. `stopAll` invalidates histories and stops the native sequence; `shutdown` stops the stream and frees its buffers. See the [processing example](examples.md#chorus-delay-reverb-and-creative-saturation) and [field ranges](api.md#setmasterprocessingoptions).
+`setMasterProcessing` merges partial updates, validates the entire result and returns publication acceptance. Continuous controls ramp over 10 ms. Disabling an effect closes input gradually and keeps its tail, bounded to 30 seconds with a final fade, then restores exact bypass. It does not undo a non-unity input gain. `stopAll` invalidates histories and stops every native sequence; `shutdown` stops the stream and frees its buffers. See the [processing example](examples.md#chorus-delay-reverb-and-creative-saturation) and [field ranges](api.md#setmasterprocessingoptions).
 
 Delay and LFO sync follow global `setTempo` (initially 120); free settings retain milliseconds or hertz. The two extra voice LFOs target filter cutoff, square PWM or sine FM, with sine/triangle waves. They are independent of `lfoFreq`/`lfoDepth` pitch vibrato. See [two LFOs](examples.md#two-voice-lfos).
 
@@ -365,7 +365,7 @@ synth.setVolume({ volume: 0.7 })
 synth.stopAll()
 ```
 
-Master volume is ramped to avoid a step in the output. `stopAll()` fades active voices, but it does not cancel future steps in the current pattern. Start a new pattern or call `shutdown()` when future scheduling must stop as well.
+Master volume changes use a linear 10 ms ramp. `stopAll()` stops every native sequence, cancels future attacks, fades active voices and invalidates effect histories. Call `stopSequence({ sequenceId })` to stop only one sequence, or `shutdown()` to close the stream and free resources.
 
 ## Output route changes
 

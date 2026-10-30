@@ -138,7 +138,7 @@ The module exposes nineteen methods and one event, `sequenceend`.
 | `getSequenceState({ sequenceId })` | `Object` or `null` | Reports applied step, musical position, tempo and revision. |
 | `setMasterProcessing(options)` | `Boolean` | Configures fixed input gain, stereo effects and optional saturation. |
 | `setVolume(options)`    | `Boolean` | Changes the master level with a short ramp.                                                              |
-| `stopAll()`             | nothing   | Releases all sounding voices through a short fade.                                                       |
+| `stopAll()`             | nothing   | Stops every sequence, fades sounding voices and clears effect histories.                                                       |
 | `shutdown()`            | nothing   | Stops the stream, cancels pending pattern steps and frees resources.                                     |
 
 Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.

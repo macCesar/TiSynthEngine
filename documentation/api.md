@@ -166,7 +166,7 @@ Starts a sustained native voice. Detect `typeof synth.noteOn === 'function'`, `n
 | `filterHz`, `filterQ` | Initial cutoff and Q; a non-none filter type is required. |
 | `fmRatio`, `fmDepth` | Initial sine FM; same rules and ranges as playTone. |
 | `detune` | Initial pitch offset in cents, −1200…1200; default 0. |
-| `spatialX`, `spatialY` | Fixed binaural position in −1…1; omitted for stereo. |
+| `spatialX`, `spatialY` | Initial binaural position in −1…1; omitted for stereo. |
 | `modulations` | Up to two native LFOs; see Additional voice modulation. |
 | `bus` | Category: music, effects (default), ui or ambience. |
 | `effectSend` | Optional explicit processed share 0-1, replacing category selection. |

@@ -162,7 +162,7 @@ If later sounds remain silent, capture the Android or Xcode log around the route
 - Confirm the deployment target is iOS 15 or newer.
 - Check whether another module changes `AVAudioSession` after startup.
 - Test interruptions, phone calls, Bluetooth and route changes on hardware.
-- Use the matching device or simulator slice from the 1.0.0 archive.
+- Use the matching device or simulator slice from the 1.0.2 archive.
 
 ## What to include in a bug report
 
@@ -174,7 +174,7 @@ The official release reports API version 1.0.0. Detect `noteOn`/`noteOff`/`updat
 
 ## A held voice does not release or update
 
-Use the original positive `voiceId`, not the pitch or an ID that has already been reused. `noteOn` does not accept `duration` or temporal `*End` fields. `updateVoice` cannot change source, filter type, table, noise clock, ADSR or spatial position; restart with a new ID when those attack-time settings must change. Compatible continuous edits ramp for 10 ms.
+Use the original positive `voiceId`, not the pitch or an ID that has already been reused. `noteOn` does not accept `duration` or temporal `*End` fields. `updateVoice` cannot change source, filter type, table, quantization, ADSR or stereo-versus-spatial mode; restart with a new ID when those attack-time settings must change. Noise clock, one-pole cutoff, effect send and compatible stereo/spatial position support live edits. Changed continuous parameters ramp for 10 ms.
 
 Check Boolean returns. A full public queue can reject `noteOff`; retry twice at 16 ms outside render, then shut down/report if still rejected. Cancel those retries on owner teardown. The [held motor example](examples.md#sustained-game-motor) implements this policy. Touch cancellation, pause and close need cleanup as well as normal key up.
 
