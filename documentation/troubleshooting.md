@@ -201,3 +201,9 @@ If accumulated attenuation remains near zero, investigate phase cancellation bet
 `WAVETABLE` repeats the supplied values using a stepped lookup. A short table can sound grainy or buzzy even when its values describe a sine wave and `bitDepth` is 0. Its harmonic character changes with pitch and filtering; this does not require reverb, an LFO or creative saturation to be enabled.
 
 Compare one note with `SINE`, at a comfortable matched level, to distinguish the source's texture from the combined sound of overlapping notes. Read `preLimiterPeakDb` and `maxLimiterReductionDb` with diagnostics enabled to investigate mix headroom. No limiter reduction does not prove that the physical speaker, headphones or output processing are clean. Keep a subjective listening observation separate from a confirmed clipping or buffer-loss diagnosis.
+
+## A variation dictionary is rejected or repeats the same sound
+
+Check both `capabilities.variation === true` and `variationSchemaVersion === 1` before sending the property. Published 1.0.2 packages reject it. Source restrictions and range ordering still apply at amount zero; near the frequency ceiling, validate tuning, detune, every chord pitch and active pitch endpoints together.
+
+Repeated standalone calls with one explicit seed reproduce the selected parameters. Omit it for independent selections, or use a native sequence to retain an advancing stream across loops. A held voice samples only at attack, and `updateVoice` rejects `variation`. For a running sequence, clear an inherited root dictionary with a valid amount-zero replacement; omitting it from a revision retains the merged value. See the [complete examples and rules](native-variation.md).

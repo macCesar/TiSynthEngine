@@ -6,6 +6,10 @@ Public API version: `1.0.0`
 
 Android and iOS expose the same nineteen methods, one event and waveform values. Option objects are strict: an unknown key is rejected with `unsupported_option`. Reported metadata and rejection diagnostics have platform differences; this reference does not promise sample-identical rendering between Android and iOS.
 
+## Native attack variation (local package 1.1.0)
+
+The optional `variation` dictionary is accepted by `playTone`, `playChord`, `noteOn`, sequence `voice` and step `overrides`. Public API compatibility remains `1.0.0`. Both platforms advertise `capabilities.variation: true` and `variationSchemaVersion: 1`; consumers must require both before sending the dictionary. The published 1.0.2 packages do not support it. See [native variation](native-variation.md) for fields, source restrictions, seeds and examples. Native `amount` is linear; Studio divides its displayed percentage by 100. `updateVoice` rejects the dictionary. An override replaces the whole inherited dictionary, and an amount-zero dictionary still validates its ranges.
+
 ## Return values
 
 `start`, `playTone`, `playChord`, `noteOn`, `noteOff`, `updateVoice`, `setVolume`, `setTempo`, `updateSequence`, `stopSequence` and `setMasterProcessing` return a Boolean. `playSequence` returns a positive sequence identifier, or 0 when rejected. `true` means the request was accepted. `false` means validation failed, the engine was unavailable, or the native command queue was full.
@@ -25,6 +29,8 @@ The shared result has this shape; Android adds the platform metadata described b
 ```javascript
 {
   apiVersion: '1.0.0',
+  capabilities: { variation: true },
+  variationSchemaVersion: 1,
   defaults: {
     maxVoices: 8,
     maxSequences: 1,
@@ -85,7 +91,7 @@ The shared result has this shape; Android adds the platform metadata described b
 
 `fmDepthEnd`, `detunes`, `spatialX` and `spatialY` have no reported default: their presence changes how the call is interpreted. Supplying a spatial coordinate enables binaural; the other coordinate then defaults to 0 internally. The maximum frequency is `sampleRate * 0.45`. Before the stream opens, the reported fallback is 19,845 Hz. Read the object again after `start()` if the precise device limit matters.
 
-Android additionally reports `capabilities` flags for native sequences, master processing and modulations, plus `limits.stepDurationMs`. The current iOS result omits those keys while implementing the corresponding methods and millisecond sequences. Detect a required method with `typeof synth.playSequence === 'function'` (and the other methods your feature needs); a missing capability flag is not proof that a method is unavailable. Both platforms report the `limits` object shown here.
+Android additionally reports `capabilities` flags for native sequences, master processing and modulations, plus `limits.stepDurationMs`. iOS omits those three older flags and `limits.stepDurationMs` while implementing the corresponding methods and millisecond sequences; it now includes the variation capability/schema announcement. Detect a required method with `typeof synth.playSequence === 'function'` (and the other methods your feature needs); a missing capability flag is not proof that a method is unavailable. Both platforms report the `limits` object shown here.
 
 ## Limits
 
@@ -171,6 +177,7 @@ Starts a sustained native voice. Detect `typeof synth.noteOn === 'function'`, `n
 | `bus` | Category: music, effects (default), ui or ambience. |
 | `effectSend` | Optional explicit processed share 0-1, replacing category selection. |
 | `priority` | Integer admission priority 0-3, default 0. |
+| `variation` | Optional attack-only ranges; see Native attack variation. |
 
 No `duration` or temporal `*End` targets are accepted. Source, table, filter type and envelope configuration require a new attack; compatible position controls can be updated. Other initial defaults and cross-field validation rules match `playTone`.
 
@@ -263,6 +270,7 @@ Plays one pitch. It uses 440 Hz when neither pitch field is present. Note names 
 | `bus` | string | `effects` | Category: music, effects, ui or ambience. |
 | `effectSend` | number | omitted | Explicit processed share 0-1; replaces category selection. |
 | `priority` | integer | `0` | Admission priority 0-3; higher voices are protected. |
+| `variation` | dictionary | omitted | Optional attack-only ranges; see Native attack variation. |
 
 Omitted attack/release values are shortened to fit an event smaller than the default envelope. Explicit values must satisfy the documented envelope rules. `getDefaults()` reports the baseline defaults, not these per-event adjustments.
 
@@ -296,7 +304,7 @@ Returns a positive `sequenceId` on accepted atomic publication, or 0 on rejectio
 
 Each step contains exactly one representation: `notes` (1-32 MIDI integers, 12-119), `frequencies` (1-32 frequencies in Hz), or `rest: true`. Duplicate pitches produce unison voices. Optional `duration` changes the interval until the next attack; `length` explicitly sets note duration until release begins and replaces gate for that step. Both use the sequence's time unit (at most 300 beats or 60,000 ms). Note length is positive, at least 0.000001; intervals use the four-sample scheduling minimum. Notes can overlap later attacks. Step `gate` overrides root gate. `overrides` merges shaping over root `voice`.
 
-The `voice` and `overrides` dictionaries accept `attack`, `decay`, `sustain`, `release`, `volume`, `waveType`, `pan`, `panEnd`, `frequencyEnd`, `lfoFreq`, `lfoDepth`, `noiseRate`, `noiseRateEnd`, `lowPassHz`, `pulseWidth`, `pulseWidthEnd`, `waveTable`, `bitDepth`, `filterType`, `filterHz`, `filterHzEnd`, `filterQ`, `fmRatio`, `fmDepth`, `fmDepthEnd`, `spatialX`, `spatialY`, `modulations`, `bus`, `effectSend` and `priority`. Individual tone parameter ranges and source/filter compatibility rules apply. ADSR remains in milliseconds and has no step-duration budget. Sweeps traverse the note's length and hold their destination throughout release. Chord compensation is fixed at attack; later notes never rescale existing voices.
+The `voice` and `overrides` dictionaries accept `attack`, `decay`, `sustain`, `release`, `volume`, `waveType`, `pan`, `panEnd`, `frequencyEnd`, `lfoFreq`, `lfoDepth`, `noiseRate`, `noiseRateEnd`, `lowPassHz`, `pulseWidth`, `pulseWidthEnd`, `waveTable`, `bitDepth`, `filterType`, `filterHz`, `filterHzEnd`, `filterQ`, `fmRatio`, `fmDepth`, `fmDepthEnd`, `spatialX`, `spatialY`, `modulations`, `bus`, `effectSend`, `priority` and `variation`. A step variation replaces the entire inherited dictionary. Individual tone parameter ranges and source/filter compatibility rules apply. ADSR remains in milliseconds and has no step-duration budget. Sweeps traverse the note's length and hold their destination throughout release. Chord compensation is fixed at attack; later notes never rescale existing voices.
 
 ### `updateSequence({ sequenceId, ...changes })`
 
@@ -391,6 +399,7 @@ Starts 1 to 32 pitches as one atomic event. Exactly one pitch array is required.
 | `bus` | string | `effects` | Category: music, effects, ui or ambience. |
 | `effectSend` | number | omitted | Explicit processed share 0-1; replaces category selection. |
 | `priority` | integer | `0` | Admission priority 0-3; higher voices are protected. |
+| `variation` | dictionary | omitted | Optional attack-only ranges; see Native attack variation. |
 
 `pans` and `detunes` cannot contain more entries than the pitch array, and missing detune entries count as 0. Missing `pans` entries use the position computed from `panSpread`, or 0 when no spread is set. `playChord` does not accept sweep, vibrato or `detune` fields.
 

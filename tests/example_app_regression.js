@@ -8,7 +8,7 @@ const { test } = require('node:test')
 const source = fs.readFileSync(path.join(__dirname, '../example/app.js'), 'utf8')
 const recorded = []
 
-function playground() {
+function playground(metadata = {}) {
   const widgets = [], timers = new Map(), intervals = new Map(), calls = []
   let serial = 0, accepted = true
   function widget(options = {}) {
@@ -25,7 +25,7 @@ function playground() {
     return value
   }
   const synth = widget()
-  synth.getDefaults = () => ({ apiVersion: '1.0.0', limits: { spatialX: {}, spatialY: {} },
+  synth.getDefaults = () => ({ ...metadata, apiVersion: '1.0.0', limits: { spatialX: {}, spatialY: {} },
     waveTypes: { SINE: 0, SQUARE: 1, SAWTOOTH: 2, TRIANGLE: 3, NOISE: 4, WAVETABLE: 5 } })
   for (const method of ['start', 'playTone', 'playChord', 'playSequence', 'setVolume', 'setStatsEnabled', 'stopSequence']) {
     synth[method] = options => {
@@ -167,4 +167,14 @@ test('repeated scores coalesce until their stopped native owner retires', () => 
   p.synth.fire('sequenceend', {sequenceId:1, reason:'completed'})
   assert.equal(publications.length, 2)
   p.win.fire('close')
+})
+
+
+test('native variation example requires both announcements and leaves old modules on their original recipe', () => {
+ for(const metadata of [{},{capabilities:{variation:true}},{variationSchemaVersion:1},{capabilities:{variation:true},variationSchemaVersion:1}]) {
+  const p=playground(metadata);p.start();p.click('ATTACK VARIATION');
+  const o=p.calls.at(-1).options;
+  assert.equal(!!o.variation,metadata.capabilities?.variation===true&&metadata.variationSchemaVersion===1);
+  assert.equal(o.frequency,620);p.win.fire('close');
+ }
 })

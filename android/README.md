@@ -45,3 +45,8 @@ java -cp "$test_dir" ti.synthengine.SynthDspRegression
 Build the distributable module with the Titanium CLI from `android/`. The expected archive is `dist/ti.synthengine-android-1.0.2.zip`.
 
 Binaural HRTF data: copyright 1994 MIT Media Laboratory, measured by Bill Gardner and Keith Martin. Use is permitted with attribution. See [MIT KEMAR](https://sound.media.mit.edu/resources/KEMAR.html) and the module's third-party notices.
+
+
+## Local 1.1.0 candidate
+
+The current source builds module 1.1.0 with optional [native per-attack variation](../documentation/native-variation.md), public API 1.0.0. This is a local candidate, without a release/tag. Its ZIP filename ends in `1.1.0.zip`; the published 1.0.2 ZIP is not replaced. Both platforms announce `capabilities.variation: true` and `variationSchemaVersion: 1`.

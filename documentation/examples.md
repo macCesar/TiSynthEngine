@@ -728,3 +728,28 @@ function closeMixMeter () {
 ```
 
 Call `closeMixMeter` when its owner hides or closes. Display unavailable or unmeasured fields as unavailable. Reset deliberately before a comparison. These values measure digital peak protection, not speaker loudness, subjective quality or a guarantee that every audio deadline was met.
+
+## Bounded variation for repeated noise impacts
+
+The local 1.1.0 packages choose values once per admitted attack. This example keeps the noise source and envelope fixed, varies the initial noise/filter settings, and lets the authored sweep endpoints finish unchanged. Call it through the application's existing effect cadence after normal engine startup.
+
+```javascript
+var synth = require('ti.synthengine')
+var contract = synth.getDefaults()
+var impact = {
+  waveType: contract.waveTypes.NOISE,
+  frequency: 200, duration: 240, attack: 2, release: 170,
+  volume: 0.20, noiseRate: 5000, noiseRateEnd: 900,
+  filterType: 'lowpass', filterHz: 2800, filterHzEnd: 500, filterQ: 0.8
+}
+if (contract.capabilities && contract.capabilities.variation === true
+    && contract.variationSchemaVersion === 1) {
+  impact.variation = {
+    amount: 0.6,
+    ranges: { noiseRate: [4200, 5800], filterHz: [2400, 3200] }
+  }
+}
+synth.playTone(impact)
+```
+
+Omit `seed` for successive native selections. An explicit seed repeats the selected parameters of standalone calls. The [variation reference](native-variation.md) includes chord gain, sustained ownership, native loop inheritance and revision examples. Its amount is linear; Studio divides the displayed percentage by 100 to obtain the same value.

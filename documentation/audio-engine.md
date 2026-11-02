@@ -261,7 +261,7 @@ Android ARM64 reuses coefficients across eight consecutive samples, with four-sa
 
 ## Own-platform performance verification
 
-The [performance review](performance-review.json) separates measured host improvements, exact compatibility checks and pending device acceptance. Its [raw evidence](performance-review-evidence.zip) retains rejected prototypes and the investigation of idle/stereo regressions. The Apple FIR, stable-control cache and exact idle-effects bypass were evaluated as one atomic candidate and then rejected after physical 32-stereo timing regressed. All three production changes were removed together; the full-score publication and control-memory fixes remain.
+The [performance review](../docs/validation/performance-review.json) separates measured host improvements, exact compatibility checks and pending device acceptance. Its [raw evidence](../docs/validation/performance-review-evidence.zip) retains rejected prototypes and the investigation of idle/stereo regressions. The Apple FIR, stable-control cache and exact idle-effects bypass were evaluated as one atomic candidate and then rejected after physical 32-stereo timing regressed. All three production changes were removed together; the full-score publication and control-memory fixes remain.
 
 Matched 48 kHz/1024-frame iPad full-load runs completed 600 audio seconds without callback deadline misses, with p95 load upper bounds 0.427 for the reference and 0.383 for the rejected initial candidate. The original Apple callback was restored because 32-stereo bypass p95 regressed reproducibly, including continuous-voice windows. Android Sim20/Sim80 frame presentation remains near 60 FPS, while occasional Sim80 output underruns persist in both versions. Compact 48 kHz iPad memory growth is about 18.2 MiB in both versions; no material RAM saving or physical 192 kHz acceptance is claimed. These results and qualified listening observations are recorded separately in the review.
 
@@ -344,7 +344,7 @@ Portable checks: compile and run `tests/sequence_core_regression.c`, `tests/effe
 
 Device feedback superseded that headroom target for Studio's initial Cristal preset: its fixed gain is restored to 1 because the calibrated setting made a fresh Android installation barely audible. This adds 10.83 dB without saturation or voice-count normalization. Three coherent factory notes remain below the limiter ceiling at maximum master; eight independent coherent notes can require limiting. The calibration recommendations remain recorded separately from this active preset exception.
 
-The [Studio technical validation report](studio-validation.json) records the calibration and corrected full-chain host benchmark, including failed deadline acceptance and pending device checks. Its host performance result must not be presented as hardware realtime acceptance.
+The [Studio technical validation report](../docs/validation/studio-validation.json) records the calibration and corrected full-chain host benchmark, including failed deadline acceptance and pending device checks. Its host performance result must not be presented as hardware realtime acceptance.
 
 ## Unified transport acceptance boundaries
 

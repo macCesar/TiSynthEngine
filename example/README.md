@@ -5,7 +5,7 @@ The Classic Titanium app in [app.js](app.js) demonstrates the timed sounds, nati
 ## Run it
 
 1. Create a Classic Titanium application with Android and/or iOS support. If the app uses Alloy, create a separate Classic test project and leave the Alloy-generated files in place.
-2. Download the official [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2) packages, or build the current module source. Source builds produce `android/dist/ti.synthengine-android-1.0.2.zip` and `ios/dist/ti.synthengine-iphone-1.0.2.zip`.
+2. Download the official [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2) packages, or build the current module source. Source builds now produce local `android/dist/ti.synthengine-android-1.1.0.zip` and `ios/dist/ti.synthengine-iphone-1.1.0.zip` candidates; select version `1.1.0` in both module entries when using them.
 3. Put the archive for each target platform in the test app root. Add these entries inside its `tiapp.xml`:
 
 ```xml
@@ -80,3 +80,8 @@ node --test tests/example_app_regression.js
 ```
 
 The example regression executes its real action callbacks with simulated Titanium UI/audio boundaries. It covers rejection feedback, placement/bypass, session restart and gain preservation, diagnostic cleanup and close-before-start. It does not render native audio or establish layout, perceived elevation, silent-mode behavior or sound quality. Use the device checklist above, including headphones and an output-route change, before claiming those results.
+
+
+## Native attack variation
+
+The **ATTACK VARIATION** button submits the same metal-strike recipe on each press. With both capability announcements, the renderer chooses pitch, FM depth and level once per admitted attack. Older packages receive the original recipe without the dictionary. This button uses independent timed events; the [variation guide](../documentation/native-variation.md) separately demonstrates sustained ownership and native sequence retriggers. Physical listening acceptance remains separate from host correctness checks.

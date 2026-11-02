@@ -96,7 +96,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', default='937e774')
     parser.add_argument('--work-dir', type=Path, default=Path('/tmp/tisynth-unified-benchmark'))
-    parser.add_argument('--output', type=Path, default=ROOT / 'documentation/unified-bypass-performance.json')
+    parser.add_argument('--output', type=Path, default=ROOT / 'docs/validation/unified-bypass-performance.json')
     parser.add_argument('--runs', type=int, default=10)
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--build-only', action='store_true')

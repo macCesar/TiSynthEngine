@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## Unreleased: local 1.1.0 candidates
+
+- Add optional native per-attack parameter ranges on timed tones, atomic chords, held notes and native sequence attacks, with shared deterministic selection, strict validation and an independent stream from oscillator noise.
+- Keep selected values through sustain and release. Sequence loops select again; same-seed revisions retain their counter and changed seeds restart it when applied.
+- Advertise `capabilities.variation` and `variationSchemaVersion: 1` on both platforms while retaining `apiVersion: '1.0.0'`.
+- Preserve absent/amount-zero rendering and existing event gains, chord compensation, transport cadence and routes. See [contract and verification](documentation/native-variation.md).
+- Produce local Android/iOS module packages 1.1.0 alongside the published 1.0.2 packages. No release or tag is created by this work.
 
 ## [1.0.2] - 2026-10-29
 
@@ -88,7 +94,7 @@ Initial official release. The earlier private snapshot and all subsequent change
 ### Changed
 
 - Publish complete sequence scores without redundant bank copies on Android and iOS; reuse the iOS producer's validated preparation while retaining partial-edit and atomic rejection behavior.
-- Retain the original Apple renderer after physical 32-stereo timing rejected the experimental eight-sample FIR/cache/idle-effects bundle. Exact compatibility, measured producer gains, rejected prototypes and physical acceptance limits are recorded in `documentation/performance-review.json`.
+- Retain the original Apple renderer after physical 32-stereo timing rejected the experimental eight-sample FIR/cache/idle-effects bundle. Exact compatibility, measured producer gains, rejected prototypes and physical acceptance limits are recorded in `docs/validation/performance-review.json`.
 
 ### Fixed
 

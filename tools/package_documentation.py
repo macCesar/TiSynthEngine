@@ -5,6 +5,7 @@ markdown package. --check-only validates temporary candidates without replacing
 those ZIPs. Native compilation remains a separate required build step.
 """
 from pathlib import Path
+from posixpath import normpath,join,dirname
 import argparse,hashlib,html,json,re,subprocess,zipfile,os,tempfile
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sdk-path',type=Path,required=True,help='Titanium SDK directory containing node_modules/markdown')
@@ -33,7 +34,17 @@ for p,source,page in zip(paths,sources,pages):
  it=iter(anchors)
  page=re.sub(r'<h([1-6])>',lambda m:'<h'+m[1]+' id="'+next(it)+'">',page)
  assert next(it,None) is None, p
- page=re.sub(r'(href="[^"]*)\.md(?=[#"])',r'\1.html',page)
+ def package_link(match):
+  dest=html.unescape(match[1])
+  if re.match(r'\w+:',dest):return match[0]
+  file,sep,frag=dest.partition('#')
+  target=normpath(join(p.relative_to(ROOT).parent.as_posix(),file))
+  if target.startswith('docs/validation/'):
+   assert (ROOT/target).is_file(),(p,dest)
+   dest='https://github.com/macCesar/TiSynthEngine/blob/main/'+target+(sep+frag if sep else '')
+  else:dest=re.sub(r'\.md(?=#|$)','.html',dest)
+  return 'href="'+html.escape(dest,quote=True)+'"'
+ page=re.sub(r'href="([^"]+)"',package_link,page)
  rendered[p.relative_to(ROOT).with_suffix('.html').as_posix()]=page.encode()
 proof={}
 for folder,plat in [('android','android'),('ios','iphone')]:
@@ -44,8 +55,10 @@ for folder,plat in [('android','android'),('ios','iphone')]:
   assert z.testzip() is None
   data={n:z.read(n) for n in z.namelist() if not n.endswith('/')}
  native={n:sha(v) for n,v in data.items() if n.endswith(('.aar','.a','.so'))}
+ # Old candidate archives may already contain raw reports. Documentation refresh
+ # removes them instead of carrying them into every consuming application.
+ data={n:b for n,b in data.items() if not (n.startswith(prefix+'documentation/') and n.endswith(('.json','.zip')))}
  for relname,page in rendered.items():data[prefix+relname]=page
- for p in sorted(list((ROOT/'documentation').glob('*.json'))+list((ROOT/'documentation').glob('*.zip'))):data[prefix+'documentation/'+p.name]=p.read_bytes()
  for p in (ROOT/'example').rglob('*'):
   if p.is_file():data[prefix+p.relative_to(ROOT).as_posix()]=p.read_bytes()
  for p in [ROOT/'README.md',ROOT/'LICENSE']: 
@@ -57,10 +70,9 @@ for folder,plat in [('android','android'),('ios','iphone')]:
   assert z.testzip() is None
   assert native=={n:sha(z.read(n)) for n in z.namelist() if n.endswith(('.aar','.a','.so'))}
   for relname,page in rendered.items():assert z.read(prefix+relname)==page
-  for p in sorted(list((ROOT/'documentation').glob('*.json'))+list((ROOT/'documentation').glob('*.zip'))):assert z.read(prefix+'documentation/'+p.name)==p.read_bytes()
+  assert not any(n.startswith(prefix+'documentation/') and n.endswith(('.json','.zip')) for n in z.namelist())
   anchors={n:set(re.findall(r'id="([^"]+)"',b.decode())) for n,b in data.items() if n.endswith('.html')}
   checked=0
-  from posixpath import normpath,join,dirname
   for n,page in [(prefix+n,b.decode()) for n,b in rendered.items()]:
    for dest in re.findall(r'href="([^"]+)"',page):
     if re.match(r'\w+:',dest):continue
@@ -71,7 +83,7 @@ for folder,plat in [('android','android'),('ios','iphone')]:
      checked+=1
  if not CHECK_ONLY:os.replace(tmp,path)
  artifact=tmp if CHECK_ONLY else path
- proof[plat]={'checkOnly':CHECK_ONLY,'zip':rel,'sha256':sha(artifact.read_bytes()),'zipCRC':True,'binaryMembersUnchanged':True,'binarySha256':native,'htmlPages':len(rendered),'htmlLinksAndAnchorsChecked':checked,'jsonReportsMatchSource':True,'exampleMatchesSource':True}
+ proof[plat]={'checkOnly':CHECK_ONLY,'zip':rel,'sha256':sha(artifact.read_bytes()),'zipCRC':True,'binaryMembersUnchanged':True,'binarySha256':native,'htmlPages':len(rendered),'htmlLinksAndAnchorsChecked':checked,'rawValidationArtifactsExcluded':True,'exampleMatchesSource':True}
 if args.output_proof and not CHECK_ONLY:args.output_proof.write_text(json.dumps(proof,indent=2)+'\n')
 print(json.dumps(proof,indent=2))
 if CHECK_ONLY:

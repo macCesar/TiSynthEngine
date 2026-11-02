@@ -4,7 +4,7 @@ Install TiSynthEngine, start it after layout settles, and release its native aud
 
 ## Install the module
 
-Download both official packages from [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2). For source builds, the matching archives are produced under `android/dist` and `ios/dist`:
+Download both official packages from [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2). For the published 1.0.2 revision, matching archives are produced under `android/dist` and `ios/dist`:
 
 - `ti.synthengine-android-1.0.2.zip`
 - `ti.synthengine-iphone-1.0.2.zip`
@@ -572,3 +572,8 @@ See the [complete field contract](api.md#getstats), [measurement limits](stats-p
 The current diagnostics add `preLimiterPeakDb` (maximum signal before final limiting, in dBFS) and `maxLimiterReductionDb` (greatest limiter attenuation in dB) accumulated since reset. Unlike the approximately 200 ms window reduction field, brief peaks remain visible between UI polls. Enable measurements, reset before the scenario and keep `null`/absent fields distinct from measured zero. The [measurement example](examples.md#measure-peaks-and-limiter-reduction) shows opt-in polling and cleanup.
 
 Fixed event/input gain does not normalize continuously by active voice count. Coherent overlapping notes, effects feedback or resonance can still exceed the ceiling; the limiter then acts on the whole stereo sum. Saturation is a separate creative processor, disabled initially. Physical loudness and small-speaker bass response are not measured by these digital meters.
+
+
+## Local native-variation candidate
+
+Current source builds local 1.1.0 packages; select `version="1.1.0"` for both platforms when installing these candidates alongside published 1.0.2. They retain API 1.0.0. Require both variation announcements before sending its dictionary; see [native attack variation](native-variation.md). The candidates have not been published as a release.

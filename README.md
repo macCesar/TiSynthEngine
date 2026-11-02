@@ -2,7 +2,10 @@
 
 TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
 
-The module id is `ti.synthengine`. The current Android and iOS packages are version `1.0.2`; both retain the public API version `1.0.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
+The module id is `ti.synthengine`. The published Android and iOS packages are version `1.0.2`; both retain the public API version `1.0.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
+
+The current source builds local **1.1.0** candidates with optional [native per-attack variation](documentation/native-variation.md), retaining API `1.0.0`. These candidates have not been published as releases; official 1.0.2 archives remain unchanged.
+
 
 ## What it is for
 
@@ -19,6 +22,7 @@ It is a synthesizer, not a sample player. It does not decode `.wav` or `.mp3` fi
 | Add game sounds or interface feedback | [Sound design and recipes](documentation/sound-design.md) |
 | Build playable keys or a sustained game motor | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
 | Schedule music, chords, swing or arpeggios | [Native musical transport](documentation/guide.md#choose-the-musical-transport) |
+| Vary repeated attacks with bounded native parameters | [Variation reference and examples](documentation/native-variation.md) |
 | Find an option, range or return value | [API reference](documentation/api.md) |
 | Run an interactive device example | [Example app and checklist](example/README.md) |
 | Diagnose silence, rough sound or missed audio buffers | [Troubleshooting](documentation/troubleshooting.md) and [statistics](documentation/stats-performance.md) |
@@ -465,7 +469,7 @@ Full-score publication and control-memory improvements are retained. The experim
 | Android and iPad game runs | Approximately 60 FPS in the measured Sim20 and Sim80 scenarios | Strict iPad population-matched comparison remains inconclusive; occasional Android Sim80 output underruns persist |
 | Physical load and memory tests | Recorded callback deadlines, bounded recovery checks and compact 48 kHz memory measurements | The extreme Android load fails feasibility; physical 192 kHz memory/output and full listening certification remain open |
 
-Read the [performance review](documentation/performance-review.json) for accepted, rejected and pending candidates, and the [raw evidence archive](documentation/performance-review-evidence.zip) for reproducibility. Host CPU measurements are not whole-app CPU measurements or promises of the same gain on a device. The [statistics guide](documentation/stats-performance.md) explains how to interpret the counters.
+Read the [performance review](docs/validation/performance-review.json) for accepted, rejected and pending candidates, and the [raw evidence archive](docs/validation/performance-review-evidence.zip) for reproducibility. Host CPU measurements are not whole-app CPU measurements or promises of the same gain on a device. The [statistics guide](documentation/stats-performance.md) explains how to interpret the counters.
 
 ## Build and test
 

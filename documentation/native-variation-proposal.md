@@ -1,6 +1,10 @@
-# Native per-attack variation — proposal and implementation plan
+<a id="native-per-attack-variation--proposal-and-implementation-plan"></a>
+
+# Native per-attack variation: proposal and implementation plan
 
 Status: proposed on November 1, 2026. This document does **not** describe an implemented API. Continue implementation in a session rooted at TiSynthEngine. César authorized defining this native feature; no native source, binaries, packages, tags or releases were changed while writing the proposal.
+
+Implementation update (November 1, 2026): current source and local 1.1.0 candidates implement the contract on both platforms. See [the implemented contract](native-variation.md) and [verification](native-variation-validation.md). The proposal and historical feasibility findings below describe the starting point; they are not release announcements.
 
 ## Purpose and ownership
 
@@ -35,9 +39,9 @@ synth.playTone({
 ```
 
 - Omitted `variation`: current behavior, no extra RNG calls or changed noise state.
-- `amount`: finite number 0–1, default 1 when variation is supplied. Zero bypasses sampling and leaves authored values unchanged. The dictionary is still validated.
+- `amount`: finite number 0 to 1, default 1 when variation is supplied. Zero bypasses sampling and leaves authored values unchanged. The dictionary is still validated.
 - `ranges`: dictionary of permitted field ranges. Empty ranges have no audible effect. Each value is exactly two finite numbers `[minimum, maximum]` with minimum ≤ maximum. Equal endpoints deliberately fix a value when amount is 1.
-- `seed`: optional integer 0–4294967295. Zero is a valid deterministic seed, not the sentinel for automatic seeding. Omission uses the Engine's independent variation stream.
+- `seed`: optional integer 0 to 4294967295. Zero is a valid deterministic seed, not the sentinel for automatic seeding. Omission uses the Engine's independent variation stream.
 - Non-pitch ranges are **absolute native parameter values**, not multipliers. Interpolate from the authored value toward the sampled value: `authored + amount * (sampled - authored)`.
 - `pitchCents` is a relative offset, initially zero. Multiply the already tuned/detuned frequency and its active sweep endpoint by `2 ** (amount * sampledCents / 1200)`.
 - Each range samples a uniform distribution. No quantized three-variant selection, hidden rounding to preset choices or automatic rejection of a natural repeated value.
@@ -46,18 +50,18 @@ synth.playTone({
 
 | Range field | Bounds and compatibility | Identity rule |
 | --- | --- | --- |
-| `volume` | Current native event volume 0–2 | Sample before existing fixed chord compensation; no other voice is rescaled. |
-| `filterHz` | 20–active frequency ceiling; an enabled resonant filter is required | Changes starting cutoff; the authored `filterHzEnd` remains the same endpoint. |
-| `filterQ` | 0.5–10; enabled resonant filter required | Does not change filter type. |
-| `fmDepth` | 0–10; SINE only | Does not change `fmRatio`; an authored FM endpoint, including zero, remains unchanged. |
+| `volume` | Current native event volume 0 to 2 | Sample before existing fixed chord compensation; no other voice is rescaled. |
+| `filterHz` | 20 to active frequency ceiling; an enabled resonant filter is required | Changes starting cutoff; the authored `filterHzEnd` remains the same endpoint. |
+| `filterQ` | 0.5 to 10; enabled resonant filter required | Does not change filter type. |
+| `fmDepth` | 0 to 10; SINE only | Does not change `fmRatio`; an authored FM endpoint, including zero, remains unchanged. |
 | `noiseRate` | Positive colored-noise range accepted by current API; NOISE only | Does not change waveform; authored noise sweep endpoint stays fixed. |
-| `lowPassHz` | Enabled cutoff, 20–active ceiling | Does not randomly switch the low-pass on/off. A disabled low-pass cannot receive this range. |
-| `pulseWidth` | 0.05–0.95; SQUARE only | Does not change waveform; authored PWM endpoint stays fixed. |
+| `lowPassHz` | Enabled cutoff, 20 to active ceiling | Does not randomly switch the low-pass on/off. A disabled low-pass cannot receive this range. |
+| `pulseWidth` | 0.05 to 0.95; SQUARE only | Does not change waveform; authored PWM endpoint stays fixed. |
 | `pitchCents` | −1200…1200, intentional opt-in | Preserve both the starting pitch and pitch-sweep trajectory under the same multiplier. |
 
 Native validators must use the actual existing source/range rules rather than assuming all numeric intervals are continuous. In particular, do not interpolate through an invalid bypass/cutoff gap. Pitch corners must remain within the active frequency ceiling, including an existing detune and every frequency in a chord/step. Reject a dictionary whose reachable extremes are invalid; never silently clamp the variation to conceal an invalid recipe.
 
-Version one deliberately keeps waveform, wavetable, quantization, FM ratio, filter type, ADSR, event duration, rhythmic interval, routing and priority authored. This preserves the principal sound shape and simplifies timed-envelope correctness. Optional duration/ADSR variation is a separate future design: it must not randomly violate envelope budgets or move a sequence's rhythmic grid. The earlier discussion of varying 140–170 ms was an illustration, not a shipped promise.
+Version one deliberately keeps waveform, wavetable, quantization, FM ratio, filter type, ADSR, event duration, rhythmic interval, routing and priority authored. This preserves the principal sound shape and simplifies timed-envelope correctness. Optional duration/ADSR variation is a separate future design: it must not randomly violate envelope budgets or move a sequence's rhythmic grid. The earlier discussion of varying 140 to 170 ms was an illustration, not a shipped promise.
 
 ### Attacks, held notes, chords and sequences
 
@@ -98,16 +102,18 @@ A preset should define a small subset of the eight fields, with most fields left
 
 Starting references from the archived Frontier experiment:
 
-- Impacts/destruction: pitch multiplier 0.95–1.05, about −88.8…84.5 cents. Shots: 0.97–1.03, about −52.7…51.2 cents. These are optional FX bounds, not instrument defaults.
-- Colored-noise rate/cutoff: 88–112% of the anchor; FM depth 92–108%; Q 95–105%.
-- Event level: 97–100% of anchor, deliberately never louder than that anchor.
+- Impacts/destruction: pitch multiplier 0.95 to 1.05, about −88.8…84.5 cents. Shots: 0.97 to 1.03, about −52.7…51.2 cents. These are optional FX bounds, not instrument defaults.
+- Colored-noise rate/cutoff: 88 to 112% of the anchor; FM depth 92 to 108%; Q 95 to 105%.
+- Event level: 97 to 100% of anchor, deliberately never louder than that anchor.
 - ADSR/timing/voice count remain unchanged.
 
 Convert these references into absolute native ranges in each recipe. Do not bake those percentages as mandatory Engine defaults: the Engine must not guess what an anvil, glass or trumpet means. Technical range validity and recognizability are distinct; audition the material at low, midpoint and full amount.
 
-## Feasibility and compatibility review — November 1, 2026
+<a id="feasibility-and-compatibility-review--november-1-2026"></a>
 
-**Assessment:** feasible as an additive, opt-in native feature. The work crosses both validators, bridge packets, command preparation and actual voice-start paths, including sequence attacks. It is not merely accepting one extra JavaScript key. No implementation or performance acceptance is claimed by this review.
+## Feasibility and compatibility review: November 1, 2026
+
+The proposed opt-in feature is feasible. It requires changes to both validators, bridge packets, command preparation and the voice-start paths, including sequence attacks. No implementation or performance acceptance is claimed by this review.
 
 ### Compatibility requirements and consumer impact
 

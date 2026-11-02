@@ -16,6 +16,8 @@ const publicFiles = [
   'documentation/index.md',
   'documentation/guide.md',
   'documentation/api.md',
+  'documentation/native-variation.md',
+  'documentation/native-variation-validation.md',
   'documentation/examples.md',
   'documentation/sound-design.md',
   'documentation/audio-engine.md',
@@ -109,7 +111,7 @@ function checkUnwrappedProse(relativePath, source) {
 for (const relativePath of publicFiles) {
   const source = read(relativePath)
   for (const version of source.match(/(?<![\d.])\d+\.\d+\.\d+/g) || []) {
-    assert(version === '1.0.0' || version === '1.0.1' || version === '1.0.2' || version === '1.11.0' || /^13\.\d+\.\d+$/.test(version)
+    assert(version === '1.0.0' || version === '1.0.1' || version === '1.0.2' || version === '1.1.0' || version === '1.11.0' || /^13\.\d+\.\d+$/.test(version)
       || (relativePath === 'documentation/stats-performance.md' && ['21.0.0', '2100.3.34'].includes(version)),
       `${relativePath} mentions version ${version}; unexpected module/toolchain version`)
   }
