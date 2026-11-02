@@ -1,14 +1,15 @@
 # TiSynthEngine documentation
 
-TiSynthEngine is a native tone synthesizer for Titanium on Android and iOS. It plays generated tones, held voices, chords, noise, timed patterns and sample-clock sequences, with optional native stereo effects and LFO modulation through the same public API version 1.0.0 on both platforms.
+TiSynthEngine is a native tone synthesizer for Titanium on Android and iOS. It plays generated tones, held voices, chords, noise, timed patterns and sample-clock sequences, with optional native stereo effects and LFO modulation through the same public API version 1.1.0 on both platforms.
 
-Start with the [README](../README.md) if you have not installed the module yet. It explains the lifecycle, the nineteen public methods, the `sequenceend` event and common options.
+Start with the [README](../README.md) if you have not installed the module yet. It explains the lifecycle, the public methods, the `sequenceend` event and common options.
 
 ## Guides
 
 - [Instruments, sound effects and complete sequences](instruments-and-effects.md): choose the playback contract, preserve full recipes, compose demos and budget overlapping voices.
 
-- [Native attack variation](native-variation.md): the local 1.1.0 dictionary, field limits, linear amount, seeds, chords, held voices and sequence revisions.
+- [Finite-tone repetition](api.md#finite-tone-repetition): native intervals, future-attack edits and cancellation without shortening sounding attacks.
+- [Native attack variation](native-variation.md): the 1.1.0 dictionary, field limits, linear amount, seeds, chords, held voices and sequence revisions.
 - [Guide](guide.md): installation, startup, cleanup and day-to-day use.
 - [Binaural app integration](guide.md#integrate-binaural-in-a-2d-app): per-effect coordinates, switches, amplitude sliders and stereo fallback.
 - [Sustained voice ownership](guide.md#hold-and-edit-a-voice): identified notes, live edits and release cleanup.
@@ -25,8 +26,10 @@ Start with the [README](../README.md) if you have not installed the module yet. 
 - [Performance validation](stats-performance.md): host comparisons, physical results and measurement limits.
 - [Third-party notices](third-party-notices.md): licenses of bundled dependencies.
 
-The runnable Titanium app is in [`example/app.js`](../example/app.js); follow its [setup and device checklist](../example/README.md). Host-side contract and DSP regressions are in [`tests/`](../tests/) and [`android/test/`](../android/test/). The DSP math both platforms share is in [`shared/`](../shared/).
+The runnable Titanium app is in [`example/app.js`](../example/app.js); follow its [setup and device checklist](../example/README.md). Host-side contract and DSP regressions are in [`tests/`](../tests/) and [`android/test/`](../android/test/). Both platforms share the DSP math in [`shared/`](../shared/).
 
 ## Validation records
+
+[Native tone repetition validation](native-tone-repetition-validation.md) records the API 1.1.0 scheduler tests, memory and bounded host measurements.
 
 Measured results and raw captures are kept in the separate [validation archive](../docs/validation/README.md). The [performance guide](stats-performance.md) explains their scope and limitations.

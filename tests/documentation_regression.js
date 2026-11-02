@@ -155,7 +155,7 @@ function nativeKeys (method, target) {
 
 for (const [method, validator] of [['start', 'Start'], ['playTone', 'Tone'],
   ['playChord', 'Chord'], ['setVolume', 'SetVolume'], ['noteOn', 'NoteOn'],
-  ['noteOff', 'NoteOff'], ['updateVoice', 'UpdateVoice']]) {
+  ['noteOff', 'NoteOff'], ['updateNote', 'UpdateVoice']]) {
   const section = apiDoc.split('## `' + method + '(options)`')[1]
   assert(section, method + ' documented')
   const table = section.split('\n## ')[0]

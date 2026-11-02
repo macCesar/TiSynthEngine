@@ -1,8 +1,8 @@
 # TiSynthEngine Android module
 
-This folder contains the Android implementation of `ti.synthengine` 1.0.2. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
+This folder contains the Android implementation of `ti.synthengine` 1.1.0. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
 
-Public API version 1.0.0 exposes the same nineteen methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [new-feature integration](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use the current official 1.0.2 packages and rebuild consumer apps after installing a native module.
+Public API version 1.1.0 exposes the same public methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [capability detection](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use matching 1.1.0 packages for the current API. Version 1.0.2 remains available separately with API 1.0.0. Rebuild consumer apps after replacing a native binary.
 
 ## Runtime
 
@@ -24,7 +24,7 @@ The native engine provides:
 
 `build.gradle` resolves Oboe 1.11.0 through Prefab and extends Titanium's generated `Android.mk`. Supported ABIs are `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`. The packaged AAR requires compile API 35 or newer and can be used by Titanium 13.2.0 projects.
 
-The runtime renderer is in `jni/SynthOboeEngine.cpp`; master ramps and final sample protection use `shared/synth_output.h`. `SynthDsp.java` is a historical Java model retained for its own tests and profile constants, not a production audio oracle. Run `python3 tests/run_native_hosts.py` from the repository root to exercise the actual callback with cached Oboe 1.11.0 headers and a JDK. Profile selection is checked by `python3 tests/run_start_profiles.py`.
+The runtime renderer is in `jni/SynthOboeEngine.cpp`; master ramps and final sample protection use `shared/synth_output.h`. `SynthDsp.java` is a historical Java model retained for its own tests and profile constants. It does not validate production audio. Run `python3 tests/run_native_hosts.py` from the repository root to exercise the actual callback with cached Oboe 1.11.0 headers and a JDK. Profile selection is checked by `python3 tests/run_start_profiles.py`.
 
 ## Host tests
 
@@ -42,11 +42,11 @@ java -cp "$test_dir" ti.synthengine.SynthContractRegression
 java -cp "$test_dir" ti.synthengine.SynthDspRegression
 ```
 
-Build the distributable module with the Titanium CLI from `android/`. The expected archive is `dist/ti.synthengine-android-1.0.2.zip`.
+Build the distributable module with the Titanium CLI from `android/`. The expected archive is `dist/ti.synthengine-android-1.1.0.zip`.
 
 Binaural HRTF data: copyright 1994 MIT Media Laboratory, measured by Bill Gardner and Keith Martin. Use is permitted with attribution. See [MIT KEMAR](https://sound.media.mit.edu/resources/KEMAR.html) and the module's third-party notices.
 
 
-## Local 1.1.0 candidate
+## Version 1.1.0
 
-The current source builds module 1.1.0 with optional [native per-attack variation](../documentation/native-variation.md), public API 1.0.0. This is a local candidate, without a release/tag. Its ZIP filename ends in `1.1.0.zip`; the published 1.0.2 ZIP is not replaced. Both platforms announce `capabilities.variation: true` and `variationSchemaVersion: 1`.
+The current source builds module 1.1.0 with optional [native per-attack variation](../documentation/native-variation.md), public API 1.1.0, native finite-tone repetition and the recommended note/statistics names. Its ZIP filename ends in `1.1.0.zip`; the published 1.0.2 ZIP is not replaced. Both platforms announce `capabilities.variation: true` and `variationSchemaVersion: 1`.

@@ -25,14 +25,14 @@ function playground(metadata = {}) {
     return value
   }
   const synth = widget()
-  synth.getDefaults = () => ({ ...metadata, apiVersion: '1.0.0', limits: { spatialX: {}, spatialY: {} },
+  synth.getDefaults = () => ({ ...metadata, apiVersion: '1.1.0', limits: { spatialX: {}, spatialY: {} },
     waveTypes: { SINE: 0, SQUARE: 1, SAWTOOTH: 2, TRIANGLE: 3, NOISE: 4, WAVETABLE: 5 } })
-  for (const method of ['start', 'playTone', 'playChord', 'playSequence', 'setVolume', 'setStatsEnabled', 'stopSequence']) {
+  for (const method of ['start', 'playTone', 'repeatTone', 'updateTone', 'stopTone', 'playChord', 'playSequence', 'setVolume', 'enableStats', 'disableStats', 'stopSequence']) {
     synth[method] = options => {
-      const call = { method, options: JSON.parse(JSON.stringify(options)) }
+      const call = { method, options: options === undefined ? null : JSON.parse(JSON.stringify(options)) }
       calls.push(call)
       if (accepted) recorded.push(call)
-      return method === 'playSequence' ? (accepted ? 1 : 0) : accepted
+      return ['playSequence', 'repeatTone'].includes(method) ? (accepted ? 1 : 0) : accepted
     }
   }
   synth.getSequenceState = () => ({playing:true})
@@ -69,7 +69,7 @@ test('every sound and volume button surfaces native rejection', () => {
     const b = p.actions().find(button => button.children[0].text === action.children[0].text)
     const before = p.calls.length
     b.fire('click')
-    if (p.calls.slice(before).some(c => ['playTone', 'playChord', 'playSequence', 'setVolume'].includes(c.method))) {
+    if (p.calls.slice(before).some(c => ['playTone', 'repeatTone', 'updateTone', 'stopTone', 'playChord', 'playSequence', 'setVolume'].includes(c.method))) {
       assert.match(p.text(), /Request rejected/, b.children[0].text)
     }
   }
@@ -121,7 +121,7 @@ test('diagnostic polling is opt-in, preserves null and cleans up the owner', () 
   p.win.fire('close')
   assert.equal(p.intervals.size, 0)
   assert.equal(p.synth.events.get('sequenceend').size, 0)
-  assert.equal(p.calls.filter(c => c.method === 'setStatsEnabled').at(-1).options, false)
+  assert.equal(p.calls.filter(c => c.method === 'disableStats').at(-1).method, 'disableStats')
   assert.equal(p.calls.at(-1).method, 'shutdown')
 })
 
@@ -177,4 +177,23 @@ test('native variation example requires both announcements and leaves old module
   assert.equal(!!o.variation,metadata.capabilities?.variation===true&&metadata.variationSchemaVersion===1);
   assert.equal(o.frequency,620);p.win.fire('close');
  }
+})
+
+
+test('native tone repeat keeps one owner, edits it and stops on close', () => {
+  const p = playground(); p.start()
+  p.click('START REPEATING')
+  const request = p.calls.at(-1)
+  assert.equal(request.method, 'repeatTone')
+  assert.equal(request.options.intervalMs, 200)
+  assert.equal(request.options.duration, 105)
+  p.click('START REPEATING')
+  assert.equal(p.calls.filter(c => c.method === 'repeatTone').length, 1)
+  p.click('EDIT REPEATING')
+  assert.deepEqual(p.calls.at(-1), {method:'updateTone', options:{toneId:1,intervalMs:150,volume:0.08}})
+  p.click('STOP REPEATING')
+  assert.deepEqual(p.calls.at(-1), {method:'stopTone', options:{toneId:1}})
+  p.click('START REPEATING'); p.win.fire('close')
+  assert.equal(p.calls.filter(c => c.method === 'stopTone').length, 2)
+  assert.equal(p.calls.at(-1).method, 'shutdown')
 })

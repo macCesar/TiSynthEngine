@@ -2,16 +2,16 @@
 
 TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
 
-The module id is `ti.synthengine`. The published Android and iOS packages are version `1.0.2`; both retain the public API version `1.0.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
+The module id is `ti.synthengine`. Android and iOS version `1.1.0` use public API version `1.1.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
 
-The current source builds local **1.1.0** candidates with optional [native per-attack variation](documentation/native-variation.md), retaining API `1.0.0`. These candidates have not been published as releases; official 1.0.2 archives remain unchanged.
+Version 1.1.0 supports [native finite-tone repetition](documentation/api.md#finite-tone-repetition), optional [native per-attack variation](documentation/native-variation.md), and API `1.1.0`. When migrating from 1.0.2, note that those packages report API 1.0.0 and do not support repetition or variation. The 1.0.2 archives remain unchanged.
 
 
 ## What it is for
 
 Use TiSynthEngine for game and interface feedback, retro effects, alarms, notes, chords, arpeggios and simple noise-based percussion. Decay and sustain, a resonant filter, FM and detune also produce plucks, keys, bells and thick pads.
 
-It is a synthesizer, not a sample player. It does not decode `.wav` or `.mp3` files, play recorded samples or provide MIDI. Sustained voices use app-supplied IDs for release and live updates. See [known limits](documentation/recommendations.md#known-limits) before using it for a long-running music or ambience system.
+The module synthesizes sound. It does not decode `.wav` or `.mp3` files, play recorded samples or provide MIDI. Sustained voices use app-supplied IDs for release and live updates. See [known limits](documentation/recommendations.md#known-limits) before using it for a long-running music or ambience system.
 
 ## Find your starting point
 
@@ -40,23 +40,25 @@ The [documentation index](documentation/index.md) connects all guides. Start wit
 
 ## Install
 
-Download the platform-specific packages from [Android 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.0.2) and [iOS 1.0.2](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.0.2), then copy both archives into the Titanium app root:
+Download the platform-specific packages from [Android 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.1.0) and [iOS 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.1.0), then copy both archives into the Titanium app root:
 
-- `ti.synthengine-android-1.0.2.zip`
-- `ti.synthengine-iphone-1.0.2.zip`
+- `ti.synthengine-android-1.1.0.zip`
+- `ti.synthengine-iphone-1.1.0.zip`
 
 Declare both platform modules in `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.0.2">ti.synthengine</module>
-  <module platform="iphone" version="1.0.2">ti.synthengine</module>
+  <module platform="android" version="1.1.0">ti.synthengine</module>
+  <module platform="iphone" version="1.1.0">ti.synthengine</module>
 </modules>
 ```
 
-The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.0.2/` during the next build.
+The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.1.0/` during the next build.
 
 ## Quick start
+
+These examples require module version 1.1.0 and API 1.1.0. Install matching Android/iOS archives and use `version="1.1.0"` in both module declarations above.
 
 Run this after the owning window has settled. The [layout-aware startup](#start-after-layout) section below shows how to defer startup and cancel it during cleanup.
 
@@ -64,8 +66,8 @@ Run this after the owning window has settled. The [layout-aware startup](#start-
 var synth = require('ti.synthengine')
 var contract = synth.getDefaults()
 
-if (contract.apiVersion !== '1.0.0') {
-  throw new Error('TiSynthEngine 1.0.0 is required')
+if (contract.apiVersion !== '1.1.0') {
+  throw new Error('TiSynthEngine 1.1.0 is required')
 }
 
 if (synth.start({
@@ -122,19 +124,22 @@ Apps that start ads, remote configuration or entry animations may need a longer 
 
 Native sample-clock sequencing, stereo chorus/delay/reverb and optional creative saturation are available through the native APIs. New processing starts disabled. See the [transport and processing contract](documentation/api.md#native-sequence-transport).
 
-The module exposes nineteen methods and one event, `sequenceend`.
+The API provides these methods and the `sequenceend` event.
 
 | Method                  | Returns   | What it does                                                                                             |
 | ----------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
 | `getStats()`            | `Object`  | Returns basic counters and enabled diagnostics; see the [stats contract](documentation/api.md#getstats). |
 | `resetStats()`          | nothing   | Resets accumulated statistics without stopping sounds.                                                   |
-| `setStatsEnabled(bool)` | `Boolean` | Enables optional timing and signal measurements (off by default).                                        |
+| `enableStats()` / `disableStats()` | `Boolean` | Enables/disables optional timing and signal measurements (off by default).                                        |
 | `getDefaults()`         | `Object`  | Reports the API version, defaults, limits, profiles and waveform constants.                              |
 | `start(options)`  | `Boolean` | Opens the native stream and fixes its voice capacity and mixing profile.                                 |
 | `noteOn(options)`      | `Boolean` | Starts an identified sustained voice; see [sustained notes](documentation/api.md#noteonoptions). |
 | `noteOff(options)`     | `Boolean` | Begins the identified voice’s release from its current level. |
-| `updateVoice(options)` | `Boolean` | Ramps compatible active-voice parameters over 10 ms without retriggering. |
-| `playTone(options)`     | `Boolean` | Plays one pitch with optional sweep, pan movement and vibrato.                                           |
+| `updateNote(options)` | `Boolean` | Ramps compatible active-voice parameters over 10 ms without retriggering. |
+| `playTone(options)`     | `Boolean` | Plays one finite pitch.                                           |
+| `repeatTone({ intervalMs, ...recipe })` | positive ID or 0 | Repeats the original finite tone on the native sample clock. |
+| `updateTone({ toneId, ...changes })` | `Boolean` | Edits future attacks of an accepted repetition. |
+| `stopTone({ toneId })` | `Boolean` | Cancels future attacks; admitted tones finish. |
 | `playChord(options)`    | `Boolean` | Starts 1 to 32 pitches as one atomic event.                                                              |
 | `playSequence(options)` | positive ID or 0 | Publishes an independent sample-clock sequence. |
 | `setTempo({ bpm })` | `Boolean` | Changes global musical tempo, preserving position. |
@@ -148,21 +153,23 @@ The module exposes nineteen methods and one event, `sequenceend`.
 
 Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.
 
+Use `updateNote({ voiceId, ...changes })` for held-note edits. `updateVoice` remains a deprecated equivalent alias. `setStatsEnabled(boolean)` is a deprecated equivalent of `enableStats()`/`disableStats()`. Both aliases remain available without repeated runtime warnings or a scheduled removal date.
+
 ## Sustained voices, musical transport and effects
 
 A held key plays a timbre at the key's pitch until the app releases it. A complete effect also includes its original frequencies, timed sweeps, layers and attack pattern. Reusing only its base waveform does not reproduce that recipe. See [instruments, sound effects and complete sequences](documentation/instruments-and-effects.md) for separate workflows, examples and capacity/gain guidance.
 
 | Feature | What you can build | Start here |
 | --- | --- | --- |
-| `noteOn`, `noteOff`, `updateVoice` | Playable keys, a held game motor, drones and final fanfare chords; compatible live controls ramp over 10 ms. | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
+| `noteOn`, `noteOff`, `updateNote` | Playable keys, a held game motor, drones and final fanfare chords; compatible live controls ramp over 10 ms. | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
 | `playSequence`, `updateSequence`, `stopSequence`, `getSequenceState` | Beat or millisecond timing, step chords, rests, gates, swing and arpeggios, up to 512 steps. | [Musical transport](documentation/guide.md#choose-the-musical-transport) |
 | `setMasterProcessing` | Stereo chorus, free/synced ping-pong delay and damped stereo reverb; optional creative saturation. | [Master effects](documentation/guide.md#add-master-effects) |
 | `modulations` on held/sequence voices | Up to two sine/triangle LFOs for filter cutoff, square PWM or sine FM, with free or tempo-synced rates. | [LFO example](documentation/examples.md#two-voice-lfos) |
 | Accumulated signal diagnostics | See brief pre-limiter peaks and limiter attenuation that happened between UI polls. | [Measure the mix](documentation/examples.md#measure-peaks-and-limiter-reduction) |
 
-The release reports `apiVersion: '1.0.0'`. Detect the methods you need and rebuild the app with matching official Android/iOS packages. The [guide](documentation/guide.md#detect-required-capabilities) shows feature detection. Timed playback remains available through its existing methods.
+Version 1.0.2 reports `apiVersion: '1.0.0'`; version 1.1.0 reports `apiVersion: '1.1.0'`. Detect the methods you need and rebuild the app with matching official Android/iOS packages. The [guide](documentation/guide.md#detect-required-capabilities) shows feature detection. Timed playback remains available through its existing methods.
 
-The initial module state is `inputGain: 1`, all four master processors disabled and no additional voice LFOs. Turning an effect on is explicit; these features are available to every Titanium consumer, including games. Select processed categories with `applyTo`; an explicit per-voice `effectSend` overrides category selection. Music, effects, UI and ambience share one effects chain and one final limiter. Turning them off drains their tails; `stopAll()` performs panic and clears effect histories. Saturation changes timbre and remains separate from final limiter protection.
+The initial module state is `inputGain: 1`, all four master processors disabled and no additional voice LFOs. Apps enable each effect explicitly. These features are available to every Titanium consumer, including games. Select processed categories with `applyTo`; an explicit per-voice `effectSend` overrides category selection. Music, effects, UI and ambience share one effects chain and one final limiter. Turning them off drains their tails; `stopAll()` performs panic and clears effect histories. Saturation changes timbre and remains separate from final limiter protection.
 
 ```javascript
 if (typeof synth.playSequence !== 'function' ||
@@ -420,7 +427,7 @@ Use stereo headphones and broadband noise to compare height. This is a front pla
 
 ## Engine statistics
 
-`getStats()` reads counters without resetting them. `setStatsEnabled(true)` enables optional callback timing and signal meters; `resetStats()` clears accumulated statistics without stopping playback. Diagnostics default off. Display `null` as unavailable or unmeasured so it remains distinct from zero.
+`getStats()` reads counters without resetting them. `enableStats()` enables optional callback timing and signal meters; `resetStats()` clears accumulated statistics without stopping playback. Diagnostics default off. Display `null` as unavailable or unmeasured so it remains distinct from zero.
 
 See the [integration and cleanup recipe](documentation/guide.md#read-engine-statistics) and [statistics field reference](documentation/api.md#getstats). Render load measures callback work; it does not measure total app CPU.
 

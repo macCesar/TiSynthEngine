@@ -61,7 +61,7 @@ for folder,plat in [('android','android'),('ios','iphone')]:
  for relname,page in rendered.items():data[prefix+relname]=page
  for p in (ROOT/'example').rglob('*'):
   if p.is_file():data[prefix+p.relative_to(ROOT).as_posix()]=p.read_bytes()
- for p in [ROOT/'README.md',ROOT/'LICENSE']: 
+ for p in [ROOT/'README.md',ROOT/'LICENSE',ROOT/'index.d.ts']:
   if p.is_file():data[prefix+p.name]=p.read_bytes()
  tmp=Path(tempfile.gettempdir())/('tisynth-docs-check-'+plat+'-'+str(os.getpid())+'.zip') if CHECK_ONLY else path.with_suffix('.tmp.zip')
  with zipfile.ZipFile(tmp,'w',compression=zipfile.ZIP_DEFLATED) as z:
@@ -70,6 +70,7 @@ for folder,plat in [('android','android'),('ios','iphone')]:
   assert z.testzip() is None
   assert native=={n:sha(z.read(n)) for n in z.namelist() if n.endswith(('.aar','.a','.so'))}
   for relname,page in rendered.items():assert z.read(prefix+relname)==page
+  assert z.read(prefix+'index.d.ts')==(ROOT/'index.d.ts').read_bytes()
   assert not any(n.startswith(prefix+'documentation/') and n.endswith(('.json','.zip')) for n in z.namelist())
   anchors={n:set(re.findall(r'id="([^"]+)"',b.decode())) for n,b in data.items() if n.endswith('.html')}
   checked=0
@@ -83,7 +84,7 @@ for folder,plat in [('android','android'),('ios','iphone')]:
      checked+=1
  if not CHECK_ONLY:os.replace(tmp,path)
  artifact=tmp if CHECK_ONLY else path
- proof[plat]={'checkOnly':CHECK_ONLY,'zip':rel,'sha256':sha(artifact.read_bytes()),'zipCRC':True,'binaryMembersUnchanged':True,'binarySha256':native,'htmlPages':len(rendered),'htmlLinksAndAnchorsChecked':checked,'rawValidationArtifactsExcluded':True,'exampleMatchesSource':True}
+ proof[plat]={'checkOnly':CHECK_ONLY,'zip':rel,'sha256':sha(artifact.read_bytes()),'zipCRC':True,'binaryMembersUnchanged':True,'binarySha256':native,'htmlPages':len(rendered),'htmlLinksAndAnchorsChecked':checked,'rawValidationArtifactsExcluded':True,'exampleMatchesSource':True,'typeDeclarationsMatchSource':True}
 if args.output_proof and not CHECK_ONLY:args.output_proof.write_text(json.dumps(proof,indent=2)+'\n')
 print(json.dumps(proof,indent=2))
 if CHECK_ONLY:
