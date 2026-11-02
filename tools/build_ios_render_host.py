@@ -20,7 +20,11 @@ METHODS = ["clearVoices", "updatePanGainsForVoice", "findTailSlot",
            "findVoiceSlotForCommand", "startVoiceFromCommand", "enqueueCommand",
            "applyHeldCommand", "sequenceGateEnded", "renderSequenceFrame",
            "pruneVoiceMetadata", "publishSequence", "maxFrequencyHz",
-           "acceptValidation", "warnOnceMethod", "voiceMaskForId", "updateVoice"]
+           "acceptValidation", "warnOnceMethod", "voiceMaskForId", "updateVoice", "playTone", "publishTone", "noteOn", "noteOff",
+           "containsRawKey", "readOptionalIntegerFrom", "readOptionalDoubleFrom",
+           "heldPriorityAllows", "enqueueSimpleCommand", "stopAll", "setStatsEnabled"]
+OPTIONAL_METHODS = ["repeatTone", "prepareTone", "publishRepeatingTone", "renderToneFrame", "updateTone", "stopTone",
+                    "updateNote", "enableStats", "disableStats"]
 EVENT_METHODS = ["scheduleSequencePoll", "cancelSequencePoll", "drainSequenceEvents"]
 
 
@@ -28,10 +32,10 @@ def extract(source):
     prefix = source[source.index("#define DEFAULT_SAMPLE_RATE"):source.index("@interface TiSynthengineModule ()")]
     ivars = source.split("@interface TiSynthengineModule () {", 1)[1].split("\n}\n@end", 1)[0]
     methods = []
-    for name in METHODS + EVENT_METHODS:
+    for name in METHODS + OPTIONAL_METHODS + EVENT_METHODS:
         match = re.search(r"^- \([^\n]+\)" + name + r"(?=[:\s])", source, re.M)
         if not match:
-            if name in EVENT_METHODS:
+            if name in EVENT_METHODS + OPTIONAL_METHODS:
                 continue
             raise ValueError("Missing production method: " + name)
         opening = source.index("{", match.start())
@@ -57,6 +61,7 @@ def main():
     source_root = args.source.resolve()
     source_path = source_root / "ios/Classes/TiSynthengineModule.m"
     prefix, ivars, methods, block = extract(source_path.read_text())
+    prefix=prefix.replace('"../../shared/synth_tone.h"', '"'+str(source_root/"shared/synth_tone.h")+'"')
     has_event_poll = any("scheduleSequencePoll" in m.split("{", 1)[0] for m in methods)
     imports = '''#import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioToolbox.h>

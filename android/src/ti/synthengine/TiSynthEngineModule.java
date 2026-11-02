@@ -75,6 +75,8 @@ public class TiSynthEngineModule extends KrollModule {
         r.put("rejectedRequestsByReason",reasons); r.put("rejectedRequestCount",validation+stopped+full);
         return r;
     }
+    /** @deprecated Use enableStats() or disableStats(). */
+    @Deprecated
     @Kroll.method
     public synchronized boolean setStatsEnabled(Object enabled) {
         if(!(enabled instanceof Boolean)) return reject(0);
@@ -83,6 +85,8 @@ public class TiSynthEngineModule extends KrollModule {
         for(int i=6;i<15;i++) lastStats[i]=Double.NaN;
         return true;
     }
+    @Kroll.method public synchronized boolean enableStats() {return setStatsEnabled(Boolean.TRUE);}
+    @Kroll.method public synchronized boolean disableStats() {return setStatsEnabled(Boolean.FALSE);}
     @Kroll.method
     public synchronized void resetStats() {
         rejectedPublications.set(0);
@@ -120,7 +124,9 @@ public class TiSynthEngineModule extends KrollModule {
         sequenceEvents.removeCallbacks(sequencePoll);
         sequencePollScheduled=false;
     }
-    private long nextSequenceId=1;
+    private long nextSequenceId=1,nextToneId=1;
+    private final java.util.Map<Integer,KrollDict> acceptedTones=new java.util.HashMap<>();
+
 
     public TiSynthEngineModule() {
         super();
@@ -196,6 +202,7 @@ public class TiSynthEngineModule extends KrollModule {
         limits.put("swing", range(SynthContract.MIN_SWING, SynthContract.MAX_SWING));
         limits.put("stepDuration", range(9/maxFrequencyHz(),300));
         limits.put("stepDurationMs",range(1800/maxFrequencyHz(),60000));
+        limits.put("maxToneRepetitions",range(1,32));limits.put("intervalMs",range(1,60000));
         limits.put("maxSequences",range(1,4));limits.put("priority",range(0,3));limits.put("effectSend",range(0,1));
         limits.put("decay", range(0, SynthContract.MAX_DECAY_MS));
         limits.put("sustain", range(0.0, 1.0));
@@ -215,6 +222,7 @@ public class TiSynthEngineModule extends KrollModule {
 
         KrollDict result = new KrollDict();
         KrollDict capabilities=new KrollDict();capabilities.put("nativeSequence",true);capabilities.put("masterProcessing",true);capabilities.put("modulations",true);
+        capabilities.put("toneRepetition",true);
         capabilities.put("variation",true);
         result.put("variationSchemaVersion",1);
         result.put("capabilities",capabilities);
@@ -244,7 +252,7 @@ public class TiSynthEngineModule extends KrollModule {
             return reject(1);
         }
         synthThread = candidate;
-        acceptedSequences.clear();acceptedProcessing=null;rejectedPublications.set(0);
+        acceptedSequences.clear();acceptedTones.clear();acceptedProcessing=null;rejectedPublications.set(0);
         cancelSequencePoll();
         lastStats=emptyStats();
         for(int i=0;i<3;i++) rejected.set(i,0);
@@ -263,7 +271,49 @@ public class TiSynthEngineModule extends KrollModule {
     }
 
     @Kroll.method
-    public synchronized boolean playTone(KrollDict options) { return publishTone(options,0); }
+    public synchronized boolean playTone(KrollDict options) {return publishTone(options,0);}
+
+    @Kroll.method
+    public synchronized int repeatTone(KrollDict options) {
+        if(synthThread==null){reject(1);return 0;}
+        KrollDict recipe;
+        try {recipe=toneRecipe(null,options);}catch(IllegalArgumentException e){reject(0);return 0;}
+        if(nextToneId>Integer.MAX_VALUE){reject(2);return 0;}
+        int id=(int)nextToneId++;
+        if(!publishRepeatedTone(id,recipe,true))return 0;
+        acceptedTones.put(id,recipe);return id;
+    }
+    private KrollDict toneRecipe(KrollDict old,KrollDict changes) {
+        return new KrollDict(new java.util.HashMap<>(SynthContract.mergeTone(old,changes,maxFrequencyHz())));
+    }
+    private int toneId(KrollDict options) {
+        if(options==null)return 0;Object raw=options.get("toneId");
+        if(!(raw instanceof Number))return 0;
+        double value=((Number)raw).doubleValue();
+        return Double.isFinite(value)&&value>=1&&value<=Integer.MAX_VALUE&&value==Math.rint(value)?(int)value:0;
+    }
+    @Kroll.method public synchronized boolean updateTone(KrollDict options) {
+        if(synthThread==null)return reject(1);
+        if(options==null||options.size()<2)return reject(0);
+        int id=toneId(options);KrollDict old=acceptedTones.get(id);if(old==null)return reject(0);
+        KrollDict changes=new KrollDict(new java.util.HashMap<>(options));changes.remove("toneId");
+        KrollDict recipe;
+        try {recipe=toneRecipe(old,changes);}catch(IllegalArgumentException e){return reject(0);}
+        if(!publishRepeatedTone(id,recipe,false))return false;
+        acceptedTones.put(id,recipe);return true;
+    }
+    @Kroll.method public synchronized boolean stopTone(KrollDict options) {
+        if(synthThread==null)return reject(1);
+        int id=toneId(options);
+        if(id==0||options.size()!=1||!acceptedTones.containsKey(id))return reject(0);
+        if(!synthThread.stopTone(id))return reject(0);
+        acceptedTones.remove(id);return true;
+    }
+    private boolean publishRepeatedTone(int id,KrollDict recipe,boolean restart) {
+        KrollDict tone=new KrollDict(new java.util.HashMap<>(recipe));
+        int interval=((Number)tone.remove("intervalMs")).intValue();
+        return publishTone(tone,0,id,interval,restart);
+    }
 
     @Kroll.method
     public synchronized boolean noteOn(KrollDict options) {
@@ -280,8 +330,13 @@ public class TiSynthEngineModule extends KrollModule {
         if(full)reject(2); return !full;
     }
 
+    /** @deprecated Use updateNote(options); voiceId and behavior are unchanged. */
+    @Deprecated
     @Kroll.method
-    public synchronized boolean updateVoice(KrollDict options) {
+    public synchronized boolean updateVoice(KrollDict options) {return updateNote(options);}
+
+    @Kroll.method
+    public synchronized boolean updateNote(KrollDict options) {
         if(synthThread==null)return reject(1);
         if(!acceptValidation("updateVoice",SynthContract.validateUpdateVoice(options,maxFrequencyHz())))return false;
         String[] keys={"frequency","volume","filterHz","filterQ","lfoFreq","lfoDepth","pulseWidth","fmRatio","fmDepth","noiseRate","lowPassHz","pan"};
@@ -309,7 +364,8 @@ public class TiSynthEngineModule extends KrollModule {
         if(full)reject(2); return !full;
     }
 
-    private boolean publishTone(KrollDict options,int voiceId) {
+    private boolean publishTone(KrollDict options,int voiceId) {return publishTone(options,voiceId,0,0,false);}
+    private boolean publishTone(KrollDict options,int voiceId,int toneId,int intervalMs,boolean restart) {
         if (synthThread == null) return reject(1);
         if (options == null) options = new KrollDict();
 
@@ -367,6 +423,7 @@ public class TiSynthEngineModule extends KrollModule {
         double[] waveTable = parseWaveTable(options);
         double[] extras = readExtras(options, defaultExtras());
         extras[SynthThread.EXTRA_VOICE_ID]=voiceId;
+        if(toneId>0){extras=java.util.Arrays.copyOf(extras,51);extras[48]=toneId;extras[49]=intervalMs;extras[50]=restart?1:0;}
         if(voiceId!=0&&options.containsKey("modulations")) {
             double[] mods=SynthStudioContract.modulations(options.get("modulations"),waveType,(int)extras[SynthThread.EXTRA_FILTER_TYPE]);
             System.arraycopy(mods,0,extras,13,12);
@@ -536,6 +593,7 @@ public class TiSynthEngineModule extends KrollModule {
 
     @Kroll.method
     public synchronized void stopAll() {
+        acceptedTones.clear();
         if (synthThread == null) return;
         boolean dropped = synthThread.requestStopAll();
         if (dropped) {
@@ -545,6 +603,7 @@ public class TiSynthEngineModule extends KrollModule {
 
     @Kroll.method
     public synchronized void shutdown() {
+        acceptedTones.clear();
         cancelSequencePoll();
         if (synthThread == null) return;
         double[] finalStats=synthThread.stopAndGetStats();

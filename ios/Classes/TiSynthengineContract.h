@@ -11,6 +11,7 @@
 + (NSDictionary *)validateNoteOn:(NSDictionary *)options maxFrequency:(double)maxFrequency;
 + (NSDictionary *)validateNoteOff:(NSDictionary *)options;
 + (NSDictionary *)validateUpdateVoice:(NSDictionary *)options maxFrequency:(double)maxFrequency;
++ (NSDictionary *)validateRepeatTone:(NSDictionary *)options maxFrequency:(double)maxFrequency;
 + (NSDictionary *)validateTone:(NSDictionary *)options maxFrequency:(double)maxFrequency;
 + (NSDictionary *)validateChord:(NSDictionary *)options maxFrequency:(double)maxFrequency;
 + (NSDictionary *)defaultsWithMaxFrequency:(double)maxFrequency;

@@ -54,7 +54,7 @@ jobs:
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Werror tests/sequence_core_regression.c -lm -o "$RUNNER_TEMP/sequence"
           "$RUNNER_TEMP/sequence"
-          for source in unified_sequence transport_core routing_core spatial_update multisequence_clock sequence_replacement variation_core variation_revision; do
+          for source in unified_sequence transport_core routing_core spatial_update multisequence_clock sequence_replacement variation_core variation_revision tone_core; do
             cc -std=c11 -O2 -Wall -Wextra -Werror "tests/${source}_regression.c" -lm -o "$RUNNER_TEMP/$source"
             "$RUNNER_TEMP/$source"
           done
@@ -66,6 +66,8 @@ jobs:
           "$RUNNER_TEMP/transport-concurrency"
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread -DSYNTH_REPLACEMENT_PUBLICATION tests/transport_concurrency_regression.cpp -o "$RUNNER_TEMP/replacement-concurrency"
           "$RUNNER_TEMP/replacement-concurrency"
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread tests/tone_concurrency_regression.cpp -o "$RUNNER_TEMP/tone-concurrency"
+          "$RUNNER_TEMP/tone-concurrency"
 
       - name: Shared statistics tests
         run: |
@@ -83,12 +85,14 @@ jobs:
             src/ti/synthengine/SynthContract.java \
             src/ti/synthengine/SynthStudioContract.java \
             test/ti/synthengine/SynthContractRegression.java \
+            test/ti/synthengine/SynthToneContractRegression.java \
             test/ti/synthengine/SynthHeldContractRegression.java \
             test/ti/synthengine/SynthSpatialContractRegression.java \
             test/ti/synthengine/SynthUnifiedContractRegression.java \
             src/ti/synthengine/SynthDsp.java \
             test/ti/synthengine/SynthDspRegression.java
           java -cp "$test_dir" ti.synthengine.SynthContractRegression
+          java -cp "$test_dir" ti.synthengine.SynthToneContractRegression
           java -cp "$test_dir" ti.synthengine.SynthHeldContractRegression
           java -cp "$test_dir" ti.synthengine.SynthSpatialContractRegression
           java -cp "$test_dir" ti.synthengine.SynthUnifiedContractRegression
@@ -106,6 +110,8 @@ jobs:
           "$RUNNER_TEMP/apple-render" --metadata
           python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-variation" --driver tests/variation_render_ios.m
           "$RUNNER_TEMP/apple-variation"
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-tones" --driver tests/ios_tone_repetition.m
+          "$RUNNER_TEMP/apple-tones"
           "$RUNNER_TEMP/apple-render"
 
       - name: Apple spatial state regression
@@ -122,6 +128,8 @@ jobs:
           "$RUNNER_TEMP/studio-contract"
           clang -fobjc-arc -Wall -Wextra -framework Foundation tests/unified_contract_ios.m ios/Classes/TiSynthengineContract.m -o "$RUNNER_TEMP/unified-contract"
           "$RUNNER_TEMP/unified-contract"
+          clang -std=c99 -fobjc-arc -Wall -Wextra -framework Foundation tests/ios_tone_contract.m ios/Classes/TiSynthengineContract.m -o "$RUNNER_TEMP/tone-contract"
+          "$RUNNER_TEMP/tone-contract"
       - name: Paired native variation contracts
         run: python3 tests/run_variation_contracts.py
       - name: iOS event polling and metadata retirement

@@ -8,7 +8,7 @@ public class SynthUnifiedContractRegression {
   check(SynthContract.validateStart(m("maxSequences",4)).accepted);
   check(!SynthContract.validateStart(m("maxSequences",0)).accepted);
   SynthStudioContract.Sequence s=SynthStudioContract.sequence(m("steps",new Object[]{m("frequencies",new Object[]{440,440},"duration",150,"length",250)},"timeUnit","ms","bus","music","priority",3),null,true,20000);
-  check(s.packet[3]==0&&s.packet[7]==1&&s.packet[8]==100&&s.packet[9]==2&&s.packet[9+134]==150&&s.packet[9+135]==250&&s.packet[9+136]==440&&s.packet[9+168]==0&&s.packet[9+170]==3);
+  check(s.packet[3]==0&&s.packet[7]==1&&s.packet[8]==100&&s.packet[SynthStudioContract.HEADER]==2&&s.packet[SynthStudioContract.HEADER+134]==150&&s.packet[SynthStudioContract.HEADER+135]==250&&s.packet[SynthStudioContract.HEADER+136]==440&&s.packet[SynthStudioContract.HEADER+168]==0&&s.packet[SynthStudioContract.HEADER+170]==3);
   check(SynthStudioContract.sequence(m("steps",new Object[]{m("rest",true)}),null,true,20000).packet[8]==.25);
   rejects(()->SynthStudioContract.sequence(m("bpm",120),s,false,20000));
   rejects(()->SynthStudioContract.sequence(m("timeUnit","beats"),s,false,20000));
@@ -21,7 +21,7 @@ public class SynthUnifiedContractRegression {
   for(Map<String,Object> bad:Arrays.asList(m("priority",1.5),m("frequencyEnd","bad"),m("frequencyEnd",Double.NaN),m("pulseWidthEnd",.01),m("panEnd",.5,"spatialX",.2),m("filterHzEnd",500),m("waveType",1,"fmDepthEnd",2))) {
    rejects(()->SynthStudioContract.sequence(m("steps",new Object[]{m("notes",new Object[]{60})},"voice",bad),null,true,20000));
   }
-  check(SynthStudioContract.sequence(m("steps",new Object[]{m("notes",new Object[]{60})},"voice",m("fmDepth",0,"fmRatio",2,"fmDepthEnd",2)),null,true,20000).packet[9+176]==1);
+  check(SynthStudioContract.sequence(m("steps",new Object[]{m("notes",new Object[]{60})},"voice",m("fmDepth",0,"fmRatio",2,"fmDepthEnd",2)),null,true,20000).packet[SynthStudioContract.HEADER+176]==1);
   rejects(()->SynthStudioContract.sequence(m("stepDuration",.000001,"steps",new Object[]{m("notes",new Object[]{60})}),null,true,20000));
   rejects(()->SynthStudioContract.sequence(m("timeUnit","ms","steps",new Object[]{m("notes",new Object[]{60},"duration",.000001)}),null,true,20000));
   System.out.println("Unified Java contract PASS");

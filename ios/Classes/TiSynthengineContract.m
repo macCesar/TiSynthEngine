@@ -512,6 +512,14 @@ static NSDictionary *ValidateVariation(NSDictionary *options,double frequency,do
   return ValidateVoiceOptions(options,maxFrequency,YES);
 }
 
++ (NSDictionary *)validateRepeatTone:(NSDictionary *)options maxFrequency:(double)maxFrequency
+{
+ if(!HasKey(options,@"intervalMs"))return Failure(@"intervalMs",@"missing_required",nil);
+ NSDictionary *failure=OptionalInteger(options,@"intervalMs",1,60000);if(failure)return failure;
+ NSMutableDictionary *tone=[options mutableCopy];[tone removeObjectForKey:@"intervalMs"];
+ return [self validateTone:tone maxFrequency:maxFrequency];
+}
+
 + (NSDictionary *)validateTone:(NSDictionary *)options maxFrequency:(double)maxFrequency
 {
   NSDictionary *failure = RejectUnknownOptions(options,
@@ -619,8 +627,8 @@ static NSDictionary *ValidateVariation(NSDictionary *options,double frequency,do
 + (NSDictionary *)defaultsWithMaxFrequency:(double)maxFrequency
 {
   return @{
-    @"apiVersion": @"1.0.0",
-    @"capabilities": @{@"variation":@YES},
+    @"apiVersion": @"1.1.0",
+    @"capabilities": @{@"variation":@YES,@"toneRepetition":@YES},
     @"variationSchemaVersion":@1,
     @"defaults": @{
       @"maxVoices": @(ContractDefaultMaxVoices), @"maxSequences": @1, @"timeUnit": @"beats", @"gate": @0.8, @"loop": @NO, @"bus": @"effects", @"priority": @0,
@@ -661,6 +669,8 @@ static NSDictionary *ValidateVariation(NSDictionary *options,double frequency,do
     @"limits": @{
       @"maxVoices": @{ @"min": @1, @"max": @(ContractMaxVoices) },
       @"maxSequences": @{ @"min": @1, @"max": @4 },
+      @"maxToneRepetitions": @{ @"min": @1, @"max": @32 },
+      @"intervalMs": @{ @"min": @1, @"max": @60000 },
       @"priority": @{ @"min": @0, @"max": @3 },
       @"effectSend": @{ @"min": @0, @"max": @1 },
       @"frequency": @{ @"min": @1.0, @"max": @(maxFrequency) },

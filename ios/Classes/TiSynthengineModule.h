@@ -3,14 +3,22 @@
 @interface TiSynthengineModule : TiModule
 
 - (NSDictionary *)getStats:(id)args;
+- (NSNumber *)enableStats:(id)args;
+- (NSNumber *)disableStats:(id)args;
+// Deprecated: use enableStats()/disableStats().
 - (NSNumber *)setStatsEnabled:(id)args;
 - (void)resetStats:(id)args;
 - (NSDictionary *)getDefaults:(id)args;
 - (NSNumber *)start:(id)args;
 - (NSNumber *)setVolume:(id)args;
 - (NSNumber *)playTone:(id)args;
+- (NSNumber *)repeatTone:(id)args;
+- (NSNumber *)updateTone:(id)args;
+- (NSNumber *)stopTone:(id)args;
 - (NSNumber *)noteOn:(id)args;
 - (NSNumber *)noteOff:(id)args;
+- (NSNumber *)updateNote:(id)args;
+// Deprecated: use updateNote().
 - (NSNumber *)updateVoice:(id)args;
 - (NSNumber *)playChord:(id)args;
 - (void)stopAll:(id)args;

@@ -78,6 +78,8 @@ public final class SynthThread {
     public synchronized boolean publishSequence(int id,double[] packet,boolean restart) {
         return nativeHandle!=0 && nativePublishSequence(nativeHandle,id,packet,restart);
     }
+    public synchronized boolean stopTone(int id) {return nativeHandle!=0&&nativeStopTone(nativeHandle,id);}
+    private static native boolean nativeStopTone(long handle,int id);
     public synchronized boolean stopSequence(int id) {return nativeHandle!=0&&nativeStopSequence(nativeHandle,id);}
     public synchronized double[] sequenceState(int id) {return nativeHandle==0?null:nativeSequenceState(nativeHandle,id);}
     public synchronized double[] sequenceEnds() {return nativeHandle==0?null:nativeSequenceEnds(nativeHandle);}

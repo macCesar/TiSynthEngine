@@ -10,7 +10,7 @@ import java.util.Map;
  */
 final class SynthContract {
 
-    static final String API_VERSION = "1.0.0";
+    static final String API_VERSION = "1.1.0";
 
     static final int DEFAULT_MAX_VOICES = 8;
     static final String DEFAULT_MIXING_PROFILE = "conservative";
@@ -238,6 +238,35 @@ final class SynthContract {
         if(contains(options,"modulations"))try {SynthStudioContract.modulations(options.get("modulations"),-1,-1);}
         catch(IllegalArgumentException e){return Validation.rejected("modulations","invalid_modulation",options.get("modulations"));}
         return validateVoiceOptions(options,maxFrequencyHz,true);
+    }
+
+    // Snapshot complete accepted recipes on the control thread. Arrays and nested
+    // dictionaries belong to this revision, never to mutable application objects.
+    static Object toneSnapshot(Object value) {
+        if(value instanceof Map<?,?>) {
+            Map<String,Object> copy=new java.util.HashMap<>();
+            for(Map.Entry<?,?> e:((Map<?,?>)value).entrySet())copy.put((String)e.getKey(),toneSnapshot(e.getValue()));
+            return copy;
+        }
+        if(value instanceof Object[]) {
+            Object[] a=(Object[])value,copy=new Object[a.length];
+            for(int i=0;i<a.length;i++)copy[i]=toneSnapshot(a[i]);return copy;
+        }
+        return value;
+    }
+    @SuppressWarnings("unchecked")
+    static Map<String,Object> mergeTone(Map<String,Object> previous,Map<String,Object> changes,double maxHz) {
+        if(changes==null)throw new IllegalArgumentException("tone options");
+        if(changes.containsKey("note")&&changes.containsKey("frequency"))throw new IllegalArgumentException("pitch");
+        Map<String,Object> merged=previous==null?new java.util.HashMap<>():new java.util.HashMap<>(previous);
+        if(changes.containsKey("note"))merged.remove("frequency");
+        if(changes.containsKey("frequency"))merged.remove("note");
+        merged.putAll(changes);
+        Validation interval=optionalInteger(merged,"intervalMs",1,60000);
+        if(!merged.containsKey("intervalMs")||!interval.accepted||((Number)merged.get("intervalMs")).doubleValue()!=Math.rint(((Number)merged.get("intervalMs")).doubleValue()))throw new IllegalArgumentException("intervalMs");
+        Map<String,Object> tone=new java.util.HashMap<>(merged);tone.remove("intervalMs");
+        if(!validateTone(tone,maxHz).accepted)throw new IllegalArgumentException("tone recipe");
+        return (Map<String,Object>)toneSnapshot(merged);
     }
 
     static Validation validateTone(Map<String, Object> options, double maxFrequencyHz) {

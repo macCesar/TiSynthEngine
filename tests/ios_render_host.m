@@ -15,6 +15,9 @@ static RenderRig *rig(double rate) {
  r->lookaheadL=calloc(r->lookaheadSize,sizeof(double));r->lookaheadR=calloc(r->lookaheadSize,sizeof(double));
  r->lookaheadPeaks=calloc(r->lookaheadSize+1,sizeof(double));r->lookaheadPeakIndices=calloc(r->lookaheadSize+1,sizeof(int64_t));
 #endif
+#ifdef SYNTH_TONE_H
+ synth_tone_init(&r->tones,rate);r->toneOptions=[NSMutableDictionary dictionary];
+#endif
  r->sequence=calloc(1,sizeof(SynthTransport));assert(r->sequence);synth_transport_init(r->sequence,rate,4);
  assert(synth_effects_init(&r->effects,rate));r->processingOptions=synth_effects_default_config();
  r->voiceGenerations=[NSMutableDictionary dictionary];r->voicePositions=[NSMutableDictionary dictionary];r->voiceSpatialModes=[NSMutableDictionary dictionary];

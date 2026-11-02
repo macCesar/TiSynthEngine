@@ -141,6 +141,9 @@ struct Command {
   bool fmDepthSweep = false;
 };
 
+#define SYNTH_TONE_RECIPE_TYPE Command
+#include "../../shared/synth_tone.h"
+
 struct Voice {
   int bus=SYNTH_BUS_EFFECTS,priority=0,sequenceSlot=-1,sequenceUnit=0;
   uint32_t sequenceId=0;
@@ -213,7 +216,7 @@ public:
   Engine(int maxVoices, int profile,int maxSequences=1)
       : maxVoices_(clampValue(maxVoices, 1, kMaxVoices)),
         profile_(clampValue(profile, 0, 3)), voices_(maxVoices_),
-        tails_(maxVoices_) { synth_stats_init(&stats_); synth_transport_init(&transport_,48000,maxSequences); }
+        tails_(maxVoices_) { synth_stats_init(&stats_); synth_transport_init(&transport_,48000,maxSequences); synth_tone_init(&tones_,48000); }
 
   ~Engine() {synth_effects_destroy(&effects_);}
 
@@ -384,6 +387,29 @@ public:
     }
     return synth_transport_commit(&transport_,c,restart)!=0;
   }
+  bool publishTone(uint32_t id,const Command &command,uint32_t intervalMs,bool restart) {
+    std::lock_guard<std::mutex> guard(producerMutex_);
+    auto *c=synth_tone_begin_write(&tones_,id,restart);if(!c)return false;
+    c->recipe=command;c->intervalMs=intervalMs;
+    if(command.variation.seeded)c->seed=command.variation.seed;
+    else if(restart)c->seed=synth_variation_word(variationSeed_,id,0,0);
+    return synth_tone_commit(&tones_,c,restart)!=0;
+  }
+  bool stopTone(uint32_t id) {
+    std::lock_guard<std::mutex> guard(producerMutex_);
+    return synth_tone_request_stop(&tones_,id)!=0;
+  }
+  void processTones() {
+    if(!tones_.activeMask)return;
+    for(int i=0;i<32;i++)if(synth_tone_due(&tones_,i)) {
+      auto *config=synth_tone_tick(&tones_,i);if(!config)continue;
+      const auto &recipe=config->recipe;
+      int slot;if(!selectSlots(1,recipe.priority,&slot)){priorityDrops_.fetch_add(1,std::memory_order_relaxed);continue;}
+      auto command=recipe;auto &repeat=tones_.slots[i];
+      if(synth_variation_active(&command.variation))varyCommand(command,repeat.variationSeed,repeat.variationAttack++,0);
+      command.variationPrepared=true;startVoice(command,slot);
+    }
+  }
   bool stopSequence(uint32_t id) {return synth_transport_request_stop(&transport_,id)!=0;}
   bool sequenceState(uint32_t id,SynthSequenceState *out) {return synth_transport_state(&transport_,id,out)!=0;}
   bool setTempo(double bpm) {return synth_transport_set_tempo(&transport_,bpm)!=0;}
@@ -393,6 +419,7 @@ public:
     Command command;
     command.type = 2;
     bool full=enqueue(command);
+    {std::lock_guard<std::mutex> guard(producerMutex_);synth_tone_stop_all(&tones_);}
     if(full)emergencyStopRequested_.store(true,std::memory_order_release);
     return full;
   }
@@ -412,6 +439,7 @@ public:
     const auto begin = measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     processCommands();
     synth_transport_begin_block(&transport_);
+    synth_tone_begin_block(&tones_);
     updateSequenceOwnership();
     const bool processEffects=effectsActive_;
     auto *output = static_cast<float *>(audioData);
@@ -422,6 +450,7 @@ public:
 #endif
     if(!spatialBlocks) {
     for (int32_t frame = 0; frame < frames; ++frame) {
+      processTones();
       if(transport_.activeMask)for(int slot=0;slot<transport_.capacity;slot++)if(transport_.activeMask&(1u<<slot))processSequence(slot);
       double left=0,right=0,selectedL=0,selectedR=0;
       if(!processEffects) {
@@ -445,6 +474,7 @@ public:
       } else {left+=selectedL;right+=selectedR;}
       limit(left, right, measure,processEffects);
       synth_transport_advance_sample(&transport_);
+      synth_tone_advance_sample(&tones_);
       output[frame * 2] = static_cast<float>(clampValue(outputL_, -1.0, 1.0));
       output[frame * 2 + 1] =
           static_cast<float>(clampValue(outputR_, -1.0, 1.0));
@@ -455,14 +485,16 @@ public:
     for (int32_t frame=0;frame<frames;) {
       // Sequence boundaries are processed only at their actual sample, before
       // planning clocks. Future attacks must never steal voices ahead of time.
+      processTones();
       if(transport_.activeMask)for(int slot=0;slot<transport_.capacity;slot++)if(transport_.activeMask&(1u<<slot))processSequence(slot);
       double beats[tileCapacity],milliseconds[tileCapacity];
       double dryL[tileCapacity]={},dryR[tileCapacity]={},selectedL[tileCapacity]={},selectedR[tileCapacity]={};
       int count=0;
       do {
         beats[count]=transport_.beat;milliseconds[count]=transport_.milliseconds;
-        synth_transport_advance_sample(&transport_);++count;
+        synth_transport_advance_sample(&transport_);synth_tone_advance_sample(&tones_);++count;
         bool due=false;
+        if(tones_.activeMask)for(int slot=0;slot<32;slot++)if(synth_tone_due(&tones_,slot)){due=true;break;}
         if(transport_.activeMask)for(int slot=0;slot<transport_.capacity;slot++)if(transport_.activeMask&(1u<<slot)) {
           const auto &sequence=transport_.slots[slot];
           if(sequence.beat+1e-10>=sequence.nextBeat){due=true;break;}
@@ -588,6 +620,7 @@ private:
     if (burst > 0)
       newStream->setBufferSizeInFrames(burst * 2);
     transport_.sampleRate=renderSampleRate_;
+    tones_.sampleRate=renderSampleRate_;
     for(int i=0;i<transport_.capacity;i++)transport_.slots[i].sampleRate=renderSampleRate_;
     if(!initializeLimiter())return false;
     xrunLast_=0;
@@ -625,6 +658,7 @@ private:
   }
 
   void clearRenderState() {
+    synth_tone_init(&tones_,renderSampleRate_);
     for (Voice &voice : voices_) {
       synth_identity_set(&identities_[&voice-voices_.data()],0,0);
       voice = Voice{};
@@ -1224,6 +1258,7 @@ public:
   bool effectsActive_=false;
   SynthEffects effects_{};
   SynthTransport transport_{};
+  SynthToneTransport tones_{};
   int32_t nextSequenceVoiceId_=-1;
   std::atomic<uint64_t> priorityDrops_{0};
   SynthStats stats_{};
@@ -1361,6 +1396,10 @@ Java_ti_synthengine_SynthThread_nativeEnqueueNote(
     command.wavetableSize = count;
   }
   applyExtras(env, command, extras, engine->sampleRate());
+  if(extras&&env->GetArrayLength(extras)>=51) {
+    double repetition[3];env->GetDoubleArrayRegion(extras,48,3,repetition);
+    if(repetition[0]>0)return !engine->publishTone((uint32_t)repetition[0],command,(uint32_t)repetition[1],repetition[2]!=0);
+  }
   return engine->enqueue(command);
 }
 extern "C" JNIEXPORT jboolean JNICALL
@@ -1479,4 +1518,8 @@ extern "C" JNIEXPORT jboolean JNICALL Java_ti_synthengine_SynthThread_nativeMast
   v.delay={(int)p[5],p[6],p[7],p[8],p[9]};v.reverb={(int)p[10],p[11],p[12],p[13]};v.saturation={(int)p[14],p[15],p[16]};
   v.applyToMask=(uint32_t)p[17];
   if(!synth_effects_validate(&v))return false;return !fromHandle(handle)->enqueue(c);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_ti_synthengine_SynthThread_nativeStopTone(JNIEnv *,jclass,jlong handle,jint id) {
+ return fromHandle(handle)->stopTone((uint32_t)id);
 }

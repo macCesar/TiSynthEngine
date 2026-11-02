@@ -225,6 +225,10 @@ typedef struct {
   bool   hasFmDepthEnd;
 } SynthCommand;
 
+#define SYNTH_TONE_RECIPE_TYPE SynthCommand
+#include "../../shared/synth_tone.h"
+#undef SYNTH_TONE_RECIPE_TYPE
+
 enum {
   CMD_NOTE_ON  = 1,
   CMD_STOP_ALL = 2,
@@ -584,9 +588,18 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
  c.modulation=StudioModulationFromValues(v->mods);c.hasModulations=v->mods[0]||v->mods[6];return c;
 }
 
+static uint32_t ToneIdentifier(NSDictionary *options) {
+ id value=options[@"toneId"];double numeric;
+ if(![value isKindOfClass:[NSNumber class]]||CFGetTypeID((__bridge CFTypeRef)value)==CFBooleanGetTypeID()||!ParseFiniteDoubleFromAny(value,&numeric)||numeric<1||numeric>INT32_MAX||numeric!=floor(numeric))return 0;
+ return (uint32_t)numeric;
+}
+
 @interface TiSynthengineModule () {
   uint32_t variationSeed;
   uint64_t variationAttack,batchVariationAttack;
+  SynthToneTransport tones;
+  uint32_t nextToneId;
+  NSMutableDictionary *toneOptions;
   SynthTransport *sequence;
   NSMutableDictionary *sequenceOptions;
   SynthEffects effects;
@@ -674,6 +687,12 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     observingAudioNotifications = YES;
   }
   DebugLog(@"[DEBUG] %@ loaded", self);
+}
+
+- (void)dealloc
+{
+  [self shutdown:nil];
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)resumeAudioEngineAfterRouteChange:(NSString *)reason
@@ -1271,6 +1290,8 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   return r;
   }
 }
+- (NSNumber *)enableStats:(id)args { (void)args; return [self setStatsEnabled:@YES]; }
+- (NSNumber *)disableStats:(id)args { (void)args; return [self setStatsEnabled:@NO]; }
 - (NSNumber *)setStatsEnabled:(id)args
 {
   @synchronized(self) {
@@ -1382,6 +1403,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     return @NO;
   }
   synth_transport_init(sequence,engineSampleRate,options[@"maxSequences"]?[options[@"maxSequences"] intValue]:1);sequenceOptions=[NSMutableDictionary dictionary];sequenceVoiceId=0;
+  synth_tone_init(&tones,engineSampleRate);toneOptions=[NSMutableDictionary dictionary];
   processingOptions=synth_effects_default_config();
   synth_stats_init(&stats);
   synth_stats_enable(&stats,statsEnabled);
@@ -1430,6 +1452,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
       atomic_store_explicit(&module->commandReadIndex, rd, memory_order_release);
       if(stopAfterCommands){synth_transport_stop_all(module->sequence);synth_effects_panic(&module->effects);[module fadeOutAllVoices];}
       if(shutdownAfterCommands)[module clearVoices];
+      synth_tone_begin_block(&module->tones);
       synth_transport_begin_block(module->sequence);
       for(int slot=0;slot<module->sequence->capacity;slot++) {
         uint32_t stopped=__atomic_load_n(&module->sequence->latestStoppedId[slot],__ATOMIC_ACQUIRE);
@@ -1446,6 +1469,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
       for (AVAudioFrameCount frame = 0; frame < frameCount; frame++) {
         synth_output_master(&module->output,atomic_load_explicit(&module->masterVolume, memory_order_relaxed));
 
+        if(module->tones.activeMask)[module renderToneFrame];
         if(module->sequence->activeMask)[module renderSequenceFrame];
         double mixL = 0.0;
         double mixR = 0.0, selectedL=0,selectedR=0;
@@ -1658,6 +1682,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
         // Routed effects and recombination precede final sample protection.
         double scaledL,scaledR,finalL,finalR;
         synth_effects_process_routed(&module->effects,module->sequence->bpm,mixL,mixR,selectedL,selectedR,module->output.masterGain,&scaledL,&scaledR);
+        synth_tone_advance_sample(&module->tones);
         synth_transport_advance_sample(module->sequence);
         if(measure)synth_stats_pre_limiter(&module->stats,scaledL,scaledR);
         double ceiling=module->mixingProfile==MIXING_PROFILE_SPEAKER_SAFE
@@ -1867,7 +1892,79 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
  }
 }
 
+- (void)renderToneFrame
+{
+ for(int slot=0;slot<SYNTH_TONE_MAX_REPETITIONS;slot++) {
+  const SynthToneConfig *config=synth_tone_tick(&tones,slot);
+  if(!config)continue;
+  SynthCommand cmd=config->recipe;
+  if([self findVoiceSlotForCommand:&cmd]<0){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);continue;}
+  ApplyAttackVariation(&cmd,tones.slots[slot].variationSeed,tones.slots[slot].variationAttack,0);
+  cmd.variationPrepared=YES;
+  if(synth_variation_active(&cmd.variation))tones.slots[slot].variationAttack++;
+  [self startVoiceFromCommand:&cmd];
+ }
+}
+
 - (NSNumber *)playTone:(id)args { return [self publishTone:args voiceId:0]; }
+
+- (NSNumber *)repeatTone:(id)args
+{
+ id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+ if(![raw isKindOfClass:[NSDictionary class]])return @0;
+ return [self publishRepeatingTone:raw identifier:0];
+}
+
+- (NSNumber *)publishRepeatingTone:(NSDictionary *)options identifier:(uint32_t)identifier
+{
+ @synchronized(self) {
+  BOOL restart=identifier==0;
+  if(!audioEngine)return restart?@0:@NO;
+  if(restart){if(nextToneId>=INT32_MAX)return @0;identifier=nextToneId+1;}
+  SynthCommand cmd;
+  if(![self acceptValidation:[TiSynthengineContract validateRepeatTone:options maxFrequency:[self maxFrequencyHz]] method:restart?@"repeatTone":@"updateTone"])return restart?@0:@NO;
+  NSMutableDictionary *tone=[options mutableCopy];[tone removeObjectForKey:@"intervalMs"];
+  if(![self prepareTone:tone voiceId:0 command:&cmd])return restart?@0:@NO;
+  SynthToneConfig *config=synth_tone_begin_write(&tones,identifier,restart);
+  if(!config){__atomic_fetch_add(&rejectedPublications,1,__ATOMIC_RELAXED);return restart?@0:@NO;}
+  config->recipe=cmd;config->intervalMs=[options[@"intervalMs"] unsignedIntValue];
+  NSDictionary *previous=toneOptions[@(identifier)];
+  BOOL explicitSeed=[options[@"variation"] isKindOfClass:[NSDictionary class]]&&options[@"variation"][@"seed"]!=nil;
+  config->seed=explicitSeed?cmd.variation.seed:restart?synth_variation_word(variationSeed,identifier,0,0):[previous[@"_effectiveSeed"] unsignedIntValue];
+  if(!synth_tone_commit(&tones,config,restart)){__atomic_fetch_add(&rejectedPublications,1,__ATOMIC_RELAXED);return restart?@0:@NO;}
+  NSDictionary *snapshot=CFBridgingRelease(CFPropertyListCreateDeepCopy(kCFAllocatorDefault,(__bridge CFPropertyListRef)options,kCFPropertyListImmutable));
+  NSMutableDictionary *accepted=[snapshot mutableCopy];accepted[@"_effectiveSeed"]=@(config->seed);toneOptions[@(identifier)]=accepted;
+  if(restart)nextToneId=identifier;
+  return restart?@(identifier):@YES;
+ }
+}
+
+- (NSNumber *)updateTone:(id)args
+{
+ @synchronized(self) {
+  id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if(![raw isKindOfClass:[NSDictionary class]]||[raw count]<2)return @NO;
+  uint32_t identifier=ToneIdentifier(raw);NSDictionary *previous=toneOptions[@(identifier)];
+  if(!identifier||!previous)return @NO;
+  NSMutableDictionary *changes=[raw mutableCopy];[changes removeObjectForKey:@"toneId"];
+  NSMutableDictionary *merged=[previous mutableCopy];[merged removeObjectForKey:@"_effectiveSeed"];
+  if(changes[@"note"])[merged removeObjectForKey:@"frequency"];
+  if(changes[@"frequency"])[merged removeObjectForKey:@"note"];
+  [merged addEntriesFromDictionary:changes];
+  return [self publishRepeatingTone:merged identifier:identifier];
+ }
+}
+
+- (NSNumber *)stopTone:(id)args
+{
+ @synchronized(self) {
+  id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if(!audioEngine||![raw isKindOfClass:[NSDictionary class]]||[raw count]!=1)return @NO;
+  uint32_t identifier=ToneIdentifier(raw);
+  if(!identifier||!toneOptions[@(identifier)]||!synth_tone_request_stop(&tones,identifier))return @NO;
+  [toneOptions removeObjectForKey:@(identifier)];return @YES;
+ }
+}
 
 - (NSNumber *)noteOn:(id)args
 {
@@ -1893,7 +1990,8 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   }
 }
 
-- (NSNumber *)updateVoice:(id)args
+- (NSNumber *)updateVoice:(id)args { return [self updateNote:args]; }
+- (NSNumber *)updateNote:(id)args
 {
   @synchronized(self) {
     if(audioEngine==nil){__atomic_fetch_add(&statsRejected[1],1,__ATOMIC_RELAXED);return @NO;}
@@ -1923,18 +2021,18 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   }
 }
 
-- (NSNumber *)publishTone:(id)args voiceId:(int32_t)voiceId
+- (BOOL)prepareTone:(id)args voiceId:(int32_t)voiceId command:(SynthCommand *)prepared
 {
   @synchronized(self) {
-  if (audioEngine == nil || engineMaxVoices < 1) { __atomic_fetch_add(&statsRejected[1],1,__ATOMIC_RELAXED); return @NO; }
+  if (audioEngine == nil || engineMaxVoices < 1) { __atomic_fetch_add(&statsRejected[1],1,__ATOMIC_RELAXED); return NO; }
 
   id raw=[args isKindOfClass:[NSArray class]] && [args count]==1 ? args[0] : args;
   if(raw==nil) raw=@{};
-  if(![raw isKindOfClass:[NSDictionary class]]) { __atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED); return @NO; }
+  if(![raw isKindOfClass:[NSDictionary class]]) { __atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED); return NO; }
   NSDictionary *options=raw;
   double maxFreq = [self maxFrequencyHz];
   if (voiceId==0 && ![self acceptValidation:[TiSynthengineContract validateTone:options maxFrequency:maxFreq]
-                       method:@"playTone"]) return @NO;
+                       method:@"playTone"]) return NO;
 
   double frequency = 0.0;
 
@@ -1956,7 +2054,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     if (frequency < MIN_FREQUENCY_HZ) {
       [self warnOnceMethod:@"playTone" key:@"note" reason:@"invalid_note"
                      value:noteObj action:@"ignored"];
-      return @NO;
+      return NO;
     }
     frequency = ClampDouble(frequency, MIN_FREQUENCY_HZ, maxFreq);
   } else {
@@ -2057,6 +2155,15 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   int maxReleaseSamples = MAX(0, cmd.durationSamples - cmd.attackSamples);
   if (cmd.releaseSamples > maxReleaseSamples) cmd.releaseSamples = maxReleaseSamples;
 
+  *prepared=cmd; return YES;
+  }
+}
+
+- (NSNumber *)publishTone:(id)args voiceId:(int32_t)voiceId
+{
+ @synchronized(self) {
+  SynthCommand cmd;
+  if(![self prepareTone:args voiceId:voiceId command:&cmd])return @NO;
   if(voiceId){if(![self heldPriorityAllows:voiceId priority:cmd.priority]){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);return @YES;}cmd.voiceGeneration=++nextVoiceGeneration;}
   BOOL dropped = [self enqueueCommand:cmd];
   if(!dropped&&voiceId){voiceGenerations[@(voiceId)]=@(cmd.voiceGeneration);voiceSpatialModes[@(voiceId)]=@(cmd.spatial);voicePositions[@(voiceId)]=@[@(cmd.spatialX),@(cmd.spatialY)];if(voiceGenerations.count>256)[self pruneVoiceMetadata];[self scheduleSequencePoll];}
@@ -2065,7 +2172,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
                    value:@"command_queue_full" action:@"drop_newest"];
   }
   if(dropped) __atomic_fetch_add(&statsRejected[2],1,__ATOMIC_RELAXED);
-  return voiceId ? (dropped ? @NO : @YES) : @(!dropped);
+  return dropped ? @NO : @YES;
   }
 }
 
@@ -2214,6 +2321,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   @synchronized(self) {
 #pragma unused(args)
   if (audioEngine == nil) return;
+  synth_tone_stop_all(&tones);[toneOptions removeAllObjects];
   BOOL dropped = [self enqueueSimpleCommand:CMD_STOP_ALL];
   if (dropped) {
     [self warnOnceMethod:@"stopAll" key:@"queue" reason:@"overflow"
@@ -2226,6 +2334,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
 {
   @synchronized(self) {
 #pragma unused(args)
+  synth_tone_stop_all(&tones);[toneOptions removeAllObjects];
   if (audioEngine == nil) return;
 
   // Cancel any pending pattern dispatches; a closing owner gets no patternend
@@ -2240,6 +2349,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   [self cancelSequencePoll];
   synth_effects_destroy(&effects);if(sequence){free(sequence);sequence=NULL;}sequenceOptions=nil;
   synth_stats_stopped(&stats);
+  synth_tone_init(&tones,engineSampleRate);toneOptions=nil;
   sourceNode  = nil;
   audioEngine = nil;
   [voiceGenerations removeAllObjects];[voicePositions removeAllObjects];[voiceSpatialModes removeAllObjects];

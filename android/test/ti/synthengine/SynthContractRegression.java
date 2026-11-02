@@ -7,7 +7,7 @@ public final class SynthContractRegression {
     private static final double MAX_FREQUENCY = 19845.0;
 
     public static void main(String[] args) throws java.io.IOException {
-        assertEquals("1.0.0", SynthContract.API_VERSION, "public API version");
+        assertEquals("1.1.0", SynthContract.API_VERSION, "public API version");
         assertTrue(SynthContract.validateStart(null).accepted, "omitted start options");
         assertEquals(8, SynthContract.DEFAULT_MAX_VOICES, "default voices");
         assertEquals("conservative", SynthContract.DEFAULT_MIXING_PROFILE, "default profile");

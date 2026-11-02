@@ -28,6 +28,7 @@ names = ['pruneVoiceMetadata', 'drainSequenceEvents', 'publishSequence',
          'scheduleSequencePoll', 'cancelSequencePoll']
 methods = [body for name in names if (body := method(name))]
 prefix = source[source.index('#define DEFAULT_SAMPLE_RATE'):source.index('@interface TiSynthengineModule ()')]
+prefix=prefix.replace('"../../shared/synth_tone.h"', '"'+str(ROOT/'shared/synth_tone.h')+'"')
 ivars = source.split('@interface TiSynthengineModule () {', 1)[1].split('\n}\n@end', 1)[0]
 init = source[source.index('synth_transport_init(sequence,'):source.index('processingOptions=synth_effects_default_config();')]
 shutdown = method('shutdown')
