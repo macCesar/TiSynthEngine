@@ -2,7 +2,7 @@
 
 # Native per-attack variation: proposal and implementation plan
 
-Status: proposed on November 1, 2026. This document does **not** describe an implemented API. Continue implementation in a session rooted at TiSynthEngine. César authorized defining this native feature; no native source, binaries, packages, tags or releases were changed while writing the proposal.
+Historical proposal, written on November 1, 2026 before implementation. The design and unchecked plan below record that starting point, not outstanding implementation work. Current source and local 1.1.0 candidates implement the feature; use the [implemented contract](native-variation.md) and [technical verification](native-variation-validation.md) for current behavior and acceptance. Writing the original proposal did not change native sources, binaries or packages.
 
 Implementation update (November 1, 2026): current source and local 1.1.0 candidates implement the contract on both platforms. See [the implemented contract](native-variation.md) and [verification](native-variation-validation.md). The proposal and historical feasibility findings below describe the starting point; they are not release announcements.
 
@@ -48,16 +48,16 @@ synth.playTone({
 
 ### Version-one fields
 
-| Range field | Bounds and compatibility | Identity rule |
-| --- | --- | --- |
-| `volume` | Current native event volume 0 to 2 | Sample before existing fixed chord compensation; no other voice is rescaled. |
-| `filterHz` | 20 to active frequency ceiling; an enabled resonant filter is required | Changes starting cutoff; the authored `filterHzEnd` remains the same endpoint. |
-| `filterQ` | 0.5 to 10; enabled resonant filter required | Does not change filter type. |
-| `fmDepth` | 0 to 10; SINE only | Does not change `fmRatio`; an authored FM endpoint, including zero, remains unchanged. |
-| `noiseRate` | Positive colored-noise range accepted by current API; NOISE only | Does not change waveform; authored noise sweep endpoint stays fixed. |
-| `lowPassHz` | Enabled cutoff, 20 to active ceiling | Does not randomly switch the low-pass on/off. A disabled low-pass cannot receive this range. |
-| `pulseWidth` | 0.05 to 0.95; SQUARE only | Does not change waveform; authored PWM endpoint stays fixed. |
-| `pitchCents` | −1200…1200, intentional opt-in | Preserve both the starting pitch and pitch-sweep trajectory under the same multiplier. |
+| Range field  | Bounds and compatibility                                               | Identity rule                                                                                |
+| ------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `volume`     | Current native event volume 0 to 2                                     | Sample before existing fixed chord compensation; no other voice is rescaled.                 |
+| `filterHz`   | 20 to active frequency ceiling; an enabled resonant filter is required | Changes starting cutoff; the authored `filterHzEnd` remains the same endpoint.               |
+| `filterQ`    | 0.5 to 10; enabled resonant filter required                            | Does not change filter type.                                                                 |
+| `fmDepth`    | 0 to 10; SINE only                                                     | Does not change `fmRatio`; an authored FM endpoint, including zero, remains unchanged.       |
+| `noiseRate`  | Positive colored-noise range accepted by current API; NOISE only       | Does not change waveform; authored noise sweep endpoint stays fixed.                         |
+| `lowPassHz`  | Enabled cutoff, 20 to active ceiling                                   | Does not randomly switch the low-pass on/off. A disabled low-pass cannot receive this range. |
+| `pulseWidth` | 0.05 to 0.95; SQUARE only                                              | Does not change waveform; authored PWM endpoint stays fixed.                                 |
+| `pitchCents` | −1200…1200, intentional opt-in                                         | Preserve both the starting pitch and pitch-sweep trajectory under the same multiplier.       |
 
 Native validators must use the actual existing source/range rules rather than assuming all numeric intervals are continuous. In particular, do not interpolate through an invalid bypass/cutoff gap. Pitch corners must remain within the active frequency ceiling, including an existing detune and every frequency in a chord/step. Reject a dictionary whose reachable extremes are invalid; never silently clamp the variation to conceal an invalid recipe.
 
@@ -117,13 +117,13 @@ The proposed opt-in feature is feasible. It requires changes to both validators,
 
 ### Compatibility requirements and consumer impact
 
-| Consumer scenario | Required behavior |
-| --- | --- |
-| An installed app keeps its existing module package | Nothing changes; the module is bundled with that app. |
-| An app rebuilds with the new package but never supplies `variation` | Existing recipe parameters, admission, envelopes, gains, processing and noise algorithm/state progression remain unchanged. No variation draws occur. |
-| An app supplies valid `{amount:0}` | Validate the dictionary, then take the same rendering path as the unvaried recipe. |
-| An app explicitly supplies active ranges | Only new attacks sample the permitted fields. Existing sustained voices are not resampled. |
-| A newer app runs with an older package | Omit the entire `variation` key unless feature support is advertised. Old closed validators reject unknown keys, including an amount-zero dictionary. Do not retry an unsupported recipe indefinitely. |
+| Consumer scenario                                                   | Required behavior                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| An installed app keeps its existing module package                  | Nothing changes; the module is bundled with that app.                                                                                                                                                  |
+| An app rebuilds with the new package but never supplies `variation` | Existing recipe parameters, admission, envelopes, gains, processing and noise algorithm/state progression remain unchanged. No variation draws occur.                                                  |
+| An app supplies valid `{amount:0}`                                  | Validate the dictionary, then take the same rendering path as the unvaried recipe.                                                                                                                     |
+| An app explicitly supplies active ranges                            | Only new attacks sample the permitted fields. Existing sustained voices are not resampled.                                                                                                             |
+| A newer app runs with an older package                              | Omit the entire `variation` key unless feature support is advertised. Old closed validators reject unknown keys, including an amount-zero dictionary. Do not retry an unsupported recipe indefinitely. |
 
 Package version and reported API compatibility are separate concerns. Playground's `Resources/lib/synthSafe.js` requires `apiVersion === '1.0.0'`; Guardian's audio system also compares its expected API version exactly. Changing that string would make those apps reject the module or fall back even if every existing sound call remained valid. Studio's inspected source does not impose that exact-version check; Frontier's inspected app/Resources source contains no `apiVersion` check.
 
@@ -160,7 +160,7 @@ The review ran only source inspection and the isolated host layout probe. No ren
 
 Do not broaden to the entire module suite automatically. Start with the new shared helper and affected contract/render tests. Broaden when a shared struct/packet change makes existing serialization/lifecycle regressions relevant, and explain that concrete reason. Run release-required checks only if an actual release is requested.
 
-## References and current workspace state
+## References and workspace state at proposal time
 
 - Current base: TiSynthEngine 1.0.2 packages, public API 1.0.0. Engine checkout was `main` ahead of `origin/main` by one preexisting documentation commit before this proposal; do not discard it.
 - Engine mixing/output/oscillator fixes are valued by César. He initially froze the Engine during the unrelated Cristal investigation, then authorized this specific optional variation feature and requested the proposal in the Engine repository.
@@ -170,7 +170,7 @@ Do not broaden to the entire module suite automatically. Start with the new shar
 - Frontier prototype proved 271 zero-amount recipe results identical to HEAD and exercised 162 generator/action cases ×32 seeds. Studio prototype checked per-attack ownership and sampled-sequence limitations. These are reference experiments, **not native implementation evidence**. They sampled some fields differently from the proposed native V1 contract; do not copy them wholesale.
 - Studio ongoing catalog: `/Users/cesar/Developer/Apps/TiSynth-Studio/documentation/sound-library.json`; generator `tools/import-sound-examples.js`. Source files are snapshotted at development time; the shipped app must not require sibling source projects.
 
-### Suggested next-session request
+### Historical implementation request
 
 > Read AGENTS.md, docs/project/status.md and documentation/native-variation-proposal.md. Implement the optional native per-attack variation contract on Android and iOS, preserving absent/disabled behavior and existing DSP/mixing. Start with the scoped tests and verify the sequence-loop/held-note/seed guarantees. Treat the document as a proposal whose contradictions should be resolved explicitly; do not publish a release or install on devices without the corresponding instruction. Integrate consumer controls after the native contract and packages are verified.
 

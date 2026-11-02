@@ -113,27 +113,27 @@ synth.playTone({
 
 ## Envelope and total duration
 
-Every event uses an attack, an implicit sustain section and a release:
+A timed tone or chord uses an attack, an implicit sustain section and a release (with an optional decay stage described below):
 
 ```text
 silence -> attack -> full level -> release -> silence
           |<---------- duration ---------->|
 ```
 
-`duration` is the total time, not the sustain time. If duration is 500 ms, attack is 50 ms and release is 100 ms, the full-level middle lasts 350 ms.
+`duration` on `playTone` and `playChord` is the total time, not the sustain time. If duration is 500 ms, attack is 50 ms and release is 100 ms, the full-level middle lasts 350 ms. Held voices instead release on `noteOff`; native sequence steps use `duration` for the next-attack interval and `length` or gate for the note deadline. Their release can overlap later attacks. See [the playback contracts](instruments-and-effects.md#3-complete-sound-sequences-and-layered-effects).
 
 Short attacks feel immediate. A 0 or 1 ms attack can be useful for percussion, but an abrupt start at an unlucky phase can sound like a click. Values between 5 and 15 ms keep most game feedback crisp without a hard edge.
 
 Long attacks soften the onset. Use 100 to 500 ms for pads and slow warnings. Release controls how the sound leaves: 20 to 80 ms feels tight, while several hundred milliseconds leaves a tail.
 
-Explicit attack and release values must fit. These relationships are required:
+For timed tones and chords, explicit attack and release values must fit. These relationships are required:
 
 ```text
 attack < duration
 release <= duration - attack
 ```
 
-Defaults are adjusted internally if a very short duration leaves no room, but values supplied by the caller are never reshaped silently.
+Timed defaults are adjusted internally if a very short duration leaves no room; explicit values must pass validation. Native rendering has additional edge rules: held and sequence voices use at least 3 ms attack/release, while iOS timed conversion rounds an accepted zero attack/release to at least one sample and Android preserves zero. Validator acceptance does not establish identical sample envelopes.
 
 ## Decay and sustain
 
@@ -153,7 +153,7 @@ Practical starting regions:
 
 `sustain` below 1 needs a nonzero `decay`. Without one the level would jump instantly, which clicks, so the call is rejected with `sustain_without_decay`.
 
-The release scales the level the note has reached. If the release begins while the decay is still running, the note leaves smoothly from that point. The decay still has to fit: `attack` plus `decay` cannot exceed `duration`, and the 50 ms default attack counts. Set a short `attack` explicitly for a tight pluck.
+The release scales the level the note has reached. If the release begins while the decay is still running, the note leaves smoothly from that point. For timed tones and chords, the decay still has to fit: `attack` plus `decay` cannot exceed `duration`, and the 50 ms default attack counts. Set a short `attack` explicitly for a tight pluck.
 
 ## Pan and movement
 
@@ -217,7 +217,7 @@ Filters shape harmonics, so give them a source that has some: `SAWTOOTH`, `SQUAR
 
 `filterQ` is the resonance. The default 0.7071 is flat. Values from 2 to 4 add character, and above about 6 the filter whistles around the cutoff. A low-pass or high-pass boosts the cutoff region by about `filterQ`, so Q 10 is roughly 20 dB. Lower the event `volume` as Q goes up. The limiter catches peaks, but a resonance that keeps hitting it makes the whole mix pump. The band-pass keeps unity gain at its center for every Q and only narrows.
 
-`filterHzEnd` moves the cutoff over the whole event. The motion is exponential, so each second covers the same musical distance. Set it above `filterHz` to open the filter and below to close it. Zero disables the sweep.
+For timed tones and chords, `filterHzEnd` moves the cutoff over the whole event. A native sequence sweep instead uses the note length and holds its endpoint during release. The motion is exponential, so each second covers the same musical distance. Set it above `filterHz` to open the filter and below to close it. Zero disables the sweep.
 
 ```javascript
 synth.playTone({
@@ -612,12 +612,12 @@ The two additional voice LFOs move filter cutoff, square PWM or sine FM index us
 
 ## Native space and creative drive
 
-| Processor | What changes | Useful starting region |
-| --- | --- | --- |
-| Stereo chorus | A short interpolated delay with offset LFO phases adds width and movement. | Rate 0.3 to 0.8 Hz, depth 0.15 to 0.35, mix 0.08 to 0.2. |
-| Ping-pong delay | Alternating echoes create rhythmic or spatial repeats. | 180 to 350 ms or synced eighths, feedback 0.15 to 0.35, mix 0.08 to 0.18. |
-| Stereo reverb | Damped comb/allpass reflections create a diffuse decay. | Decay 0.8 to 1.8 seconds, damping 0.5 to 0.7, mix 0.08 to 0.18. |
-| Optional saturation | Soft waveshaping adds harmonics and changes attack/timbre. | Drive 1.2 to 1.6 with a small blend; compare at matched levels. |
+| Processor           | What changes                                                               | Useful starting region                                                    |
+| ------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Stereo chorus       | A short interpolated delay with offset LFO phases adds width and movement. | Rate 0.3 to 0.8 Hz, depth 0.15 to 0.35, mix 0.08 to 0.2.                  |
+| Ping-pong delay     | Alternating echoes create rhythmic or spatial repeats.                     | 180 to 350 ms or synced eighths, feedback 0.15 to 0.35, mix 0.08 to 0.18. |
+| Stereo reverb       | Damped comb/allpass reflections create a diffuse decay.                    | Decay 0.8 to 1.8 seconds, damping 0.5 to 0.7, mix 0.08 to 0.18.           |
+| Optional saturation | Soft waveshaping adds harmonics and changes attack/timbre.                 | Drive 1.2 to 1.6 with a small blend; compare at matched levels.           |
 
 All processors are off initially, with input gain 1. Enable one shared chain through `setMasterProcessing`; select `applyTo` categories such as `music` and `ambience` to keep explosions dry. Per-voice `effectSend` overrides that category selection. [Configuration](examples.md#chorus-delay-reverb-and-creative-saturation) and [exact ranges](api.md#setmasterprocessingoptions) explain chorus, delay, reverb and optional saturation.
 

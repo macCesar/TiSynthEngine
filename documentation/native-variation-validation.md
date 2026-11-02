@@ -1,6 +1,6 @@
 # Native variation: technical verification
 
-Local verification on November 1, 2026, against Engine base `5a328ad`. Native sources build local 1.1.0 Android/iOS candidates; public API remains 1.0.0. No commit, push, tag, release, physical-device installation or listening acceptance is part of this result.
+Initial host and build verification on November 1, 2026, against Engine base `5a328ad`. Native sources build local 1.1.0 Android/iOS candidates; public API remains 1.0.0. The measurements below describe that technical stage. Later consumer installation and listening observations are recorded separately in the [follow-up](#consumer-installation-and-listening-follow-up); they do not turn the host measurements into physical-device benchmarks. No 1.1.0 release is announced by this report.
 
 ## Contract and rendering
 
@@ -19,24 +19,24 @@ Commands: `python3 tests/run_variation_contracts.py`, the two `variation_*_regre
 
 64-bit macOS layouts:
 
-| Structure | Base bytes | Candidate bytes |
-| --- | ---: | ---: |
-| Sequence voice | 824 | 968 |
-| Sequence step | 1,400 | 1,544 |
-| Prepared configuration | 718,920 | 794,704 |
-| Triple-bank transport | 2,156,928 | 2,384,288 |
-| Four transports | 8,627,712 | 9,537,152 |
+| Structure              | Base bytes | Candidate bytes |
+| ---------------------- | ---------: | --------------: |
+| Sequence voice         |        824 |             968 |
+| Sequence step          |      1,400 |           1,544 |
+| Prepared configuration |    718,920 |         794,704 |
+| Triple-bank transport  |  2,156,928 |       2,384,288 |
+| Four transports        |  8,627,712 |       9,537,152 |
 
 The four-bank-owner total grows by 909,440 bytes, including prepared explicit-seed identities. This excludes renderer voices/tails, command queues, effect rings, bridge arrays and canonical Java/Objective-C options. A variation configuration itself is 144 bytes. No dictionary or variable-size object reaches the callback. Explicit step seed declarations are sorted during preparation; application compares prepared root identity and seed declarations without sorting or allocation.
 
 The callback measurements below run four native transports at 48 kHz, 256 frames/block, 1,000 warmup and 1,000 measured blocks. Voice counts are distributed over the four transports; unused transports contain rests. Full-amount three-field variation is selected per admitted attack. Measurements are thread CPU time divided by rendered block budget, on the macOS hosts, without opening audio hardware.
 
 | Target voices | Android variation off | Android variation on | Apple variation off | Apple variation on |
-| --- | ---: | ---: | ---: | ---: |
-| 1 | 0.49% | 0.41% | 0.48% | 0.50% |
-| 8 | 1.43% | 1.41% | 1.85% | 1.78% |
-| 16 | 3.01% | 2.59% | 3.07% | 3.08% |
-| 32 | 6.48% | 4.80% | 5.53% | 6.04% |
+| ------------- | --------------------: | -------------------: | ------------------: | -----------------: |
+| 1             |                 0.49% |                0.41% |               0.48% |              0.50% |
+| 8             |                 1.43% |                1.41% |               1.85% |              1.78% |
+| 16            |                 3.01% |                2.59% |               3.07% |              3.08% |
+| 32            |                 6.48% |                4.80% |               5.53% |              6.04% |
 
 Run-to-run/cache/scheduling variation is visible; these single samples do not estimate a causal speedup or physical overhead bound. Other app builds were running during parts of this session. Wall time is retained in the external logs, separately from thread CPU time. At 32 voices, enabled mean CPU work is approximately 0.256 ms/Android callback and 0.322 ms/Apple callback on this host, with a 5.333 ms block budget.
 

@@ -530,7 +530,7 @@ synth.stopAll()
 synth.shutdown()
 ```
 
-`stopAll()` fades current voices but leaves pending pattern scheduling alone. `shutdown()` cancels the scheduler and releases the native stream.
+`stopAll()` stops all native sequences, fades current voices and invalidates effect histories. `shutdown()` also releases the native stream. To stop only one sequence owner, use `stopSequence({ sequenceId })`.
 
 Follow the [interactive demo setup and test checklist](../example/README.md) to run [`example/app.js`](../example/app.js). It includes headphone positioning, session selection, pattern completion/replacement and all three statistics methods. For a service-level statistics recipe, see [read engine statistics](guide.md#read-engine-statistics).
 
@@ -703,7 +703,7 @@ function disableVoiceLfos () {
 // Later release this ID with the bounded release policy above, or shut down its owner.
 ```
 
-Use `target: 'fmDepth'` only with `WAVE.SINE`; a filter target requires an active filter and PWM requires `WAVE.SQUARE`. Free rates are 0 to 20 Hz; synced subdivisions follow native transport BPM. Depth is normalized, with cutoff/PWM/FM contributions clamped to safe parameter ranges. `modulations: []` disables both slots; omitting the field on update preserves them. Copy the same initial `modulations` array into a sequence's `voice` or a step's `overrides` to modulate transport notes. Timed tones/chords/patterns do not accept the new array.
+Use `target: 'fmDepth'` only with `WAVE.SINE`; a filter target requires an active filter and PWM requires `WAVE.SQUARE`. Free rates are 0 to 20 Hz; synced subdivisions follow native transport BPM. Depth is normalized, with cutoff/PWM/FM contributions clamped to safe parameter ranges. `modulations: []` disables both slots; omitting the field on update preserves them. Copy the same initial `modulations` array into a sequence's `voice` or a step's `overrides` to modulate transport notes. Timed tones and chords do not accept the new array; native sequences accept it in `voice` or step `overrides`.
 
 ## Measure peaks and limiter reduction
 

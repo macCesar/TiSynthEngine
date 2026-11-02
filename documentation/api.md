@@ -14,7 +14,7 @@ The optional `variation` dictionary is accepted by `playTone`, `playChord`, `not
 
 `start`, `playTone`, `playChord`, `noteOn`, `noteOff`, `updateVoice`, `setVolume`, `setTempo`, `updateSequence`, `stopSequence` and `setMasterProcessing` return a Boolean. `playSequence` returns a positive sequence identifier, or 0 when rejected. `true` means the request was accepted. `false` means validation failed, the engine was unavailable, or the native command queue was full.
 
-`setStatsEnabled` also returns Boolean acceptance. `stopAll`, `resetStats` and `shutdown` do not return a value. `getDefaults` returns the contract object described below. `getStats` returns a new statistics snapshot.
+`setStatsEnabled` also returns Boolean acceptance. `stopAll`, `resetStats` and `shutdown` do not return a value. `getDefaults` returns the contract object described below. `getStats` returns a new statistics snapshot. `getSequenceState` returns the applied sequence state or `null`.
 
 ## `getDefaults()`
 
@@ -24,7 +24,7 @@ Returns the installed contract without starting the audio stream.
 var contract = synth.getDefaults()
 ```
 
-The shared result has this shape; Android adds the platform metadata described below:
+The shared result in the local 1.1.0 candidates has this shape; Android adds the platform metadata described below. Published 1.0.2 packages retain the core contract but omit the variation capability/schema fields:
 
 ```javascript
 {
@@ -91,48 +91,49 @@ The shared result has this shape; Android adds the platform metadata described b
 
 `fmDepthEnd`, `detunes`, `spatialX` and `spatialY` have no reported default: their presence changes how the call is interpreted. Supplying a spatial coordinate enables binaural; the other coordinate then defaults to 0 internally. The maximum frequency is `sampleRate * 0.45`. Before the stream opens, the reported fallback is 19,845 Hz. Read the object again after `start()` if the precise device limit matters.
 
-Android additionally reports `capabilities` flags for native sequences, master processing and modulations, plus `limits.stepDurationMs`. iOS omits those three older flags and `limits.stepDurationMs` while implementing the corresponding methods and millisecond sequences; it now includes the variation capability/schema announcement. Detect a required method with `typeof synth.playSequence === 'function'` (and the other methods your feature needs); a missing capability flag is not proof that a method is unavailable. Both platforms report the `limits` object shown here.
+In the local 1.1.0 candidates, both platforms report `capabilities.variation: true` and `variationSchemaVersion: 1`. Android additionally reports `nativeSequence`, `masterProcessing` and `modulations` capability flags and `limits.stepDurationMs`. iOS omits those three older flags and `limits.stepDurationMs` while implementing the corresponding methods and millisecond sequences. Published 1.0.2 packages do not advertise variation; their iOS metadata has no `capabilities` map. Detect a required core method with `typeof synth.playSequence === 'function'` (and the other methods your feature needs); require the capability/schema pair specifically for variation. Both platforms report `limits.maxSequences`, `limits.priority` and `limits.effectSend`. `limits.stepDuration` is in beats on both platforms; millisecond sequences accept `4000 / sampleRate` through 60,000 even when `limits.stepDurationMs` is absent.
 
 ## Limits
 
 All ranges include their endpoints. `getDefaults().limits` uses `{ min, max }` objects. Sweep targets and array elements share the corresponding base range: `panEnd`/`pans[]` use `pan`, `frequencyEnd` accepts 0 through the frequency maximum, but only targets of at least 1 Hz enable a sweep (values below 1 disable it), `noiseRateEnd` uses `noiseRate`, `filterHzEnd` uses `filterHz` plus disabled value 0, `fmDepthEnd` uses `fmDepth`, and `detunes[]` uses `detune`. The sample-count key is `waveTableSamples`; there is no `limits.waveTable` object.
 
-| Field                       |   Minimum |             Maximum | Unit or rule                                                              |
-| --------------------------- | --------: | ------------------: | ------------------------------------------------------------------------- |
-| `maxSequences` | 1 | 4 | preallocated sequence capacity |
-| `priority` | 0 | 3 | integer admission priority |
-| `effectSend` | 0 | 1 | explicit processed share |
-| `maxVoices`                 |         1 |                  32 | integer voices                                                            |
-| `frequency`                 |         1 | `sampleRate * 0.45` | Hz                                                                        |
-| `duration`                  |         1 |              60,000 | integer ms, including timed-event duration                      |
-| `attack`                    |         0 |               2,000 | integer ms; must be less than duration                                    |
-| `release`                   |         0 |               4,000 | integer ms; must fit after attack                                         |
-| `volume`                    |         0 |                   2 | event or master multiplier                                                |
-| `waveType`                  |         0 |                   5 | integer waveform value                                                    |
-| `sequenceSteps`              |         1 |                 512 | object steps                                                              |
-| `pan`, `panEnd`, `pans[]`   |        -1 |                   1 | left to right                                                             |
-| `spatialX`, `spatialY`      |        -1 |                   1 | initial binaural direction; omitted unless enabled                          |
-| `panSpread`                 |         0 |                   1 | chord stereo width                                                        |
-| `frequencyEnd`              |         0 | `sampleRate * 0.45` | Hz; values below 1 disable the sweep                                      |
-| `lfoFreq`                   |         0 |              20,000 | Hz; 0 disables vibrato                                                    |
-| `lfoDepth`                  |         0 |              20,000 | Hz                                                                        |
-| `noiseRate`, `noiseRateEnd` |         0 | `sampleRate * 0.45` | Hz; 0 selects white noise or disables the sweep                           |
-| `lowPassHz`                 |         0 | `sampleRate * 0.45` | Hz; 0 disables the filter                                                 |
-| `pulseWidth`                |      0.05 |                0.95 | fraction of a square-wave cycle                                           |
-| `pulseWidthEnd`             | 0 or 0.05 |                0.95 | 0 disables the sweep                                                      |
-| `waveTable`                 | 2 samples |          64 samples | each value must be from -1 to 1; count range is `limits.waveTableSamples` |
-| `bitDepth`                  |    0 or 2 |                  16 | integer bits; 0 disables quantization                                     |
-| `bpm`                       |        20 |                 300 | beats per minute                                                          |
-| `swing`                     |     -0.75 |                0.75 | alternating timing offset                                                 |
-| `stepDuration`              |  0.000001 |              60,000 | sequence units                                                                        |
-| `decay`                     |         0 |               4,000 | integer ms; `attack` plus `decay` must fit in the event                   |
-| `sustain`                   |         0 |                   1 | level held after the decay                                                |
-| `filterHz`                  |        20 | `sampleRate * 0.45` | Hz                                                                        |
-| `filterHzEnd`               |   0 or 20 | `sampleRate * 0.45` | Hz; 0 disables the sweep                                                  |
-| `filterQ`                   |       0.5 |                  10 | resonance                                                                 |
-| `fmRatio`                   |       0.1 |                  16 | modulator frequency divided by carrier frequency                          |
-| `fmDepth`, `fmDepthEnd`     |         0 |                  10 | modulation index in radians                                               |
-| `detune`, `detunes[]`       |     -1200 |                1200 | cents                                                                     |
+| Field                       |             Minimum |             Maximum | Unit or rule                                                              |
+| --------------------------- | ------------------: | ------------------: | ------------------------------------------------------------------------- |
+| `maxSequences`              |                   1 |                   4 | preallocated sequence capacity                                            |
+| `priority`                  |                   0 |                   3 | integer admission priority                                                |
+| `effectSend`                |                   0 |                   1 | explicit processed share                                                  |
+| `maxVoices`                 |                   1 |                  32 | integer voices                                                            |
+| `frequency`                 |                   1 | `sampleRate * 0.45` | Hz                                                                        |
+| `duration`                  |                   1 |              60,000 | integer ms, including timed-event duration                                |
+| `attack`                    |                   0 |               2,000 | integer ms; must be less than duration                                    |
+| `release`                   |                   0 |               4,000 | integer ms; must fit after attack                                         |
+| `volume`                    |                   0 |                   2 | event or master multiplier                                                |
+| `waveType`                  |                   0 |                   5 | integer waveform value                                                    |
+| `sequenceSteps`             |                   1 |                 512 | object steps                                                              |
+| `pan`, `panEnd`, `pans[]`   |                  -1 |                   1 | left to right                                                             |
+| `spatialX`, `spatialY`      |                  -1 |                   1 | initial binaural direction; omitted unless enabled                        |
+| `panSpread`                 |                   0 |                   1 | chord stereo width                                                        |
+| `frequencyEnd`              |                   0 | `sampleRate * 0.45` | Hz; values below 1 disable the sweep                                      |
+| `lfoFreq`                   |                   0 |              20,000 | Hz; 0 disables vibrato                                                    |
+| `lfoDepth`                  |                   0 |              20,000 | Hz                                                                        |
+| `noiseRate`, `noiseRateEnd` |                   0 | `sampleRate * 0.45` | Hz; 0 selects white noise or disables the sweep                           |
+| `lowPassHz`                 |                   0 | `sampleRate * 0.45` | Hz; 0 disables the filter                                                 |
+| `pulseWidth`                |                0.05 |                0.95 | fraction of a square-wave cycle                                           |
+| `pulseWidthEnd`             |           0 or 0.05 |                0.95 | 0 disables the sweep                                                      |
+| `waveTable`                 |           2 samples |          64 samples | each value must be from -1 to 1; count range is `limits.waveTableSamples` |
+| `bitDepth`                  |              0 or 2 |                  16 | integer bits; 0 disables quantization                                     |
+| `bpm`                       |                  20 |                 300 | beats per minute                                                          |
+| `swing`                     |               -0.75 |                0.75 | alternating timing offset                                                 |
+| `stepDuration`              |   `20 / sampleRate` |                 300 | beats; returned by both platforms                                         |
+| `stepDurationMs`            | `4000 / sampleRate` |              60,000 | ms; returned by Android only, accepted in ms sequences on both            |
+| `decay`                     |                   0 |               4,000 | integer ms; `attack` plus `decay` must fit in the event                   |
+| `sustain`                   |                   0 |                   1 | level held after the decay                                                |
+| `filterHz`                  |                  20 | `sampleRate * 0.45` | Hz                                                                        |
+| `filterHzEnd`               |             0 or 20 | `sampleRate * 0.45` | Hz; 0 disables the sweep                                                  |
+| `filterQ`                   |                 0.5 |                  10 | resonance                                                                 |
+| `fmRatio`                   |                 0.1 |                  16 | modulator frequency divided by carrier frequency                          |
+| `fmDepth`, `fmDepthEnd`     |                   0 |                  10 | modulation index in radians                                               |
+| `detune`, `detunes[]`       |               -1200 |                1200 | cents                                                                     |
 
 ## `start(options)`
 
@@ -140,7 +141,7 @@ Starts the native stream. Calling it again while the engine is running returns `
 
 | Key             | Type    | Default        | Description                                                                                                                              |
 | --------------- | ------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxSequences` | integer | `1` | Preallocated simultaneous sequence capacity, from 1 to 4. |
+| `maxSequences`  | integer | `1`            | Preallocated simultaneous sequence capacity, from 1 to 4.                                                                                |
 | `maxVoices`     | integer | `8`            | Size of the voice pool, from 1 to 32.                                                                                                    |
 | `mixingProfile` | string  | `conservative` | `conservative`, `balanced`, `speakerSafe` or `raw`. Matching is case-insensitive.                                                        |
 | `audioSession`  | string  | `playback`     | iOS session category: `playback` or `ambient`. Matching is case-insensitive. Android validates the value and does not change its output. |
@@ -155,62 +156,62 @@ On iOS, `playback` ignores the silent switch and interrupts other apps' audio. `
 
 Starts a sustained native voice. Detect `typeof synth.noteOn === 'function'`, `noteOff` and `updateVoice` before enabling their controls; `apiVersion` is `1.0.0`. There is no duration limit and no JavaScript timer holds the note.
 
-| Field | Rule |
-| --- | --- |
-| `voiceId` | Required positive integer, 1-2,147,483,647, supplied by the app. |
-| `frequency`, `note` | Optional mutually exclusive pitch; default 440 Hz, same ranges as playTone. |
+| Field                                   | Rule                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `voiceId`                               | Required positive integer, 1-2,147,483,647, supplied by the app.                                                                   |
+| `frequency`, `note`                     | Optional mutually exclusive pitch; default 440 Hz, same ranges as playTone.                                                        |
 | `attack`, `decay`, `sustain`, `release` | ADSR configuration for this attack; release begins only on noteOff. Same individual ranges as playTone, without a duration budget. |
-| `volume` | Initial voice level, 0-2; default 1. |
-| `waveType` | One of the six waveTypes; fixed for this attack. |
-| `pan` | Initial stereo position, −1…1. Conflicts with spatial coordinates. |
-| `lfoFreq`, `lfoDepth` | Initial vibrato, 0-20,000 Hz; default 0. |
-| `noiseRate`, `lowPassHz` | Initial noise clock / one-pole cutoff, 0 through the frequency maximum; default 0. |
-| `pulseWidth` | Initial square-wave duty cycle, 0.05-0.95; default 0.5. |
-| `waveTable` | Fixed table of 2-64 samples in −1…1; required for WAVETABLE. |
-| `bitDepth` | Fixed amplitude quantization, 0 or integer 2-16; default 0. |
-| `filterType` | Fixed none/lowpass/highpass/bandpass; default none. |
-| `filterHz`, `filterQ` | Initial cutoff and Q; a non-none filter type is required. |
-| `fmRatio`, `fmDepth` | Initial sine FM; same rules and ranges as playTone. |
-| `detune` | Initial pitch offset in cents, −1200…1200; default 0. |
-| `spatialX`, `spatialY` | Initial binaural position in −1…1; omitted for stereo. |
-| `modulations` | Up to two native LFOs; see Additional voice modulation. |
-| `bus` | Category: music, effects (default), ui or ambience. |
-| `effectSend` | Optional explicit processed share 0-1, replacing category selection. |
-| `priority` | Integer admission priority 0-3, default 0. |
-| `variation` | Optional attack-only ranges; see Native attack variation. |
+| `volume`                                | Initial voice level, 0-2; default 1.                                                                                               |
+| `waveType`                              | One of the six waveTypes; fixed for this attack.                                                                                   |
+| `pan`                                   | Initial stereo position, −1…1. Conflicts with spatial coordinates.                                                                 |
+| `lfoFreq`, `lfoDepth`                   | Initial vibrato, 0-20,000 Hz; default 0.                                                                                           |
+| `noiseRate`, `lowPassHz`                | Initial noise clock / one-pole cutoff, 0 through the frequency maximum; default 0.                                                 |
+| `pulseWidth`                            | Initial square-wave duty cycle, 0.05-0.95; default 0.5.                                                                            |
+| `waveTable`                             | Fixed table of 2-64 samples in −1…1; required for WAVETABLE.                                                                       |
+| `bitDepth`                              | Fixed amplitude quantization, 0 or integer 2-16; default 0.                                                                        |
+| `filterType`                            | Fixed none/lowpass/highpass/bandpass; default none.                                                                                |
+| `filterHz`, `filterQ`                   | Initial cutoff and Q; a non-none filter type is required.                                                                          |
+| `fmRatio`, `fmDepth`                    | Initial sine FM; same rules and ranges as playTone.                                                                                |
+| `detune`                                | Initial pitch offset in cents, −1200…1200; default 0.                                                                              |
+| `spatialX`, `spatialY`                  | Initial binaural position in −1…1; omitted for stereo.                                                                             |
+| `modulations`                           | Up to two native LFOs; see Additional voice modulation.                                                                            |
+| `bus`                                   | Category: music, effects (default), ui or ambience.                                                                                |
+| `effectSend`                            | Optional explicit processed share 0-1, replacing category selection.                                                               |
+| `priority`                              | Integer admission priority 0-3, default 0.                                                                                         |
+| `variation`                             | Optional attack-only ranges; see Native attack variation.                                                                          |
 
 No `duration` or temporal `*End` targets are accepted. Source, table, filter type and envelope configuration require a new attack; compatible position controls can be updated. Other initial defaults and cross-field validation rules match `playTone`.
 
 Sustained voices apply a minimum 3 ms attack and release edge to prevent a hard gate when the requested time is 0-2 ms. Longer ADSR times are unchanged. Timed tones retain their duration-budget envelope behavior; sequence notes release from their current envelope level at their gate/length deadline.
 
-The app supplies IDs and should never reuse one during its session. Reusing an active ID explicitly replaces that attack, snapshots a 6 ms fade tail and uses at least 6 ms attack for the replacement. With a full pool, release voices are replaced first, then the oldest attack. Timed-only events retain their existing replacement policy and sound. A former ID cannot control its replacement.
+The app supplies IDs and should never reuse one during its session. Reusing an active ID explicitly replaces that attack, snapshots a 6 ms fade tail and uses at least 6 ms attack for the replacement. Within priority-eligible candidates in a full pool, release voices are replaced first, then the oldest attack. Timed-only events retain their existing replacement policy and sound. A former ID cannot control its replacement.
 
 Repeating a public sustained note can inherit the oscillator phase and pre-envelope filter history of the newest compatible note still releasing at the same pitch. This prevents a fresh phase reset from cancelling its release tail. Each note keeps its own ID, envelope, gain and release. Compatibility requires stable matching oscillator, vibrato and filter settings; changing parameters or the two optional LFOs retain independent starts. Simultaneously held unisons, native transport notes and timed calls retain their existing phase policy.
 
 ## `noteOff(options)`
 
-| Field | Rule |
-| --- | --- |
+| Field     | Rule                                        |
+| --------- | ------------------------------------------- |
 | `voiceId` | Required positive integer, 1-2,147,483,647. |
 
 Begins release from the current level, including during attack or decay. Repeated release requests never restart or lengthen a release. An ended or stolen ID is a no-op. `true` reports validation and queue publication, not proof of an audible voice. On `false` from a full queue, an instrument should retry twice at 16 ms intervals, then shut down and report failure if release still cannot be published.
 
 ## `updateVoice(options)`
 
-| Field | Rule |
-| --- | --- |
-| `voiceId` | Required positive integer, 1-2,147,483,647. |
-| `frequency`, `note` | Mutually exclusive target pitch. Same frequency/note ranges as playTone. |
-| `volume` | Target voice level, 0-2. |
-| `filterHz`, `filterQ` | Target cutoff/Q; only for a voice that started with a resonant filter. |
-| `lfoFreq`, `lfoDepth` | Target vibrato rate/deviation, 0-20,000 Hz. |
-| `pulseWidth` | Target duty cycle, 0.05-0.95; only for a square voice. |
-| `fmRatio`, `fmDepth` | Target FM ratio 0.1-16 / depth 0-10; only for a sine voice. |
-| `modulations` | Replace up to two native LFOs; empty array disables them while preserving phase. |
-| `noiseRate`, `lowPassHz` | Live noise clock/one-pole cutoff; 0 means white noise/bypass. |
-| `pan` | Target stereo position for a voice started without spatial coordinates. |
-| `spatialX`, `spatialY` | Target position for a spatial held voice; omitted coordinate stays unchanged. |
-| `effectSend` | Explicit processed share, 0-1, overriding category selection. |
+| Field                    | Rule                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `voiceId`                | Required positive integer, 1-2,147,483,647.                                      |
+| `frequency`, `note`      | Mutually exclusive target pitch. Same frequency/note ranges as playTone.         |
+| `volume`                 | Target voice level, 0-2.                                                         |
+| `filterHz`, `filterQ`    | Target cutoff/Q; only for a voice that started with a resonant filter.           |
+| `lfoFreq`, `lfoDepth`    | Target vibrato rate/deviation, 0-20,000 Hz.                                      |
+| `pulseWidth`             | Target duty cycle, 0.05-0.95; only for a square voice.                           |
+| `fmRatio`, `fmDepth`     | Target FM ratio 0.1-16 / depth 0-10; only for a sine voice.                      |
+| `modulations`            | Replace up to two native LFOs; empty array disables them while preserving phase. |
+| `noiseRate`, `lowPassHz` | Live noise clock/one-pole cutoff; 0 means white noise/bypass.                    |
+| `pan`                    | Target stereo position for a voice started without spatial coordinates.          |
+| `spatialX`, `spatialY`   | Target position for a spatial held voice; omitted coordinate stays unchanged.    |
+| `effectSend`             | Explicit processed share, 0-1, overriding category selection.                    |
 
 At least one change is required. An incompatible change rejects the entire request when the ID is known; unknown/ended IDs accept publication as a no-op. The callback also checks source compatibility before applying a command. Changed continuous parameters ramp linearly from their current values over 10 ms. New targets retarget that ramp without restarting oscillator phase or the envelope. Unchanged parameters retain their current ramps. This also works during release.
 
@@ -234,45 +235,51 @@ Use `stopAll()` for panic: it stops every sequence, fades sounding voices and in
 
 Plays one pitch. It uses 440 Hz when neither pitch field is present. Note names accept C through B or DO, RE, MI, FA, SOL, LA, SI and TI, followed by optional `#` or lowercase `b` and one octave digit from 0 to 9. Letters are case-insensitive, the omitted octave is 4, and A4 is 440 Hz. A valid named pitch is limited to the active frequency ceiling when rendered; an out-of-range numeric `frequency` is rejected.
 
-| Key             | Type     |       Default | Description                                                                                |
-| --------------- | -------- | ------------: | ------------------------------------------------------------------------------------------ |
-| `frequency`     | number   |         `440` | Starting frequency in Hz. Cannot be combined with `note`.                                  |
-| `note`          | string   |          none | Note name. Cannot be combined with `frequency`.                                            |
-| `duration`      | integer  |         `500` | Total event length in ms.                                                                  |
-| `attack`        | integer  |          `50` | Fade-in time in ms.                                                                        |
-| `release`       | integer  |          `50` | Fade-out time in ms.                                                                       |
-| `volume`        | number   |           `1` | Event level multiplier.                                                                    |
-| `waveType`      | integer  |        `SINE` | One of the six waveform values.                                                            |
-| `pan`           | number   |           `0` | Starting stereo position.                                                                  |
-| `panEnd`        | number   | same as `pan` | Ending stereo position; omission keeps the position fixed.                                 |
-| `frequencyEnd`  | number   |           `0` | Ending frequency; values below 1 keep the starting pitch.                                  |
-| `lfoFreq`       | number   |           `0` | Vibrato rate in Hz.                                                                        |
-| `lfoDepth`      | number   |           `0` | Vibrato depth in Hz.                                                                       |
-| `noiseRate`     | number   |           `0` | Noise update rate; 0 produces a fresh value per sample.                                    |
-| `noiseRateEnd`  | number   |           `0` | Ending noise update rate; 0 disables the sweep.                                            |
-| `lowPassHz`     | number   |           `0` | Per-voice low-pass cutoff; 0 bypasses it.                                                  |
-| `pulseWidth`    | number   |         `0.5` | Duty cycle for `SQUARE`.                                                                   |
-| `pulseWidthEnd` | number   |           `0` | Ending duty cycle; 0 disables the sweep.                                                   |
-| `waveTable`     | number[] |          none | Required for `WAVETABLE`; 2 to 64 normalized samples.                                      |
-| `bitDepth`      | integer  |           `0` | Amplitude quantization from 2 to 16 bits; 0 disables it.                                   |
-| `decay`         | integer  |           `0` | Milliseconds to fall from full level to `sustain` after the attack.                        |
-| `sustain`       | number   |           `1` | Level held after the decay, from 0 to 1.                                                   |
-| `filterType`    | string   |        `none` | `none`, `lowpass`, `highpass` or `bandpass`. Case-insensitive.                             |
-| `filterHz`      | number   |        `1000` | Cutoff, or center for `bandpass`, in Hz.                                                   |
-| `filterHzEnd`   | number   |           `0` | Ending cutoff; 0 disables the sweep.                                                       |
-| `filterQ`       | number   |      `0.7071` | Resonance, from 0.5 to 10.                                                                 |
-| `fmRatio`       | number   |           `1` | Modulator frequency as a multiple of the carrier.                                          |
-| `fmDepth`       | number   |           `0` | Modulation index; 0 leaves FM off unless `fmDepthEnd` is set.                              |
-| `fmDepthEnd`    | number   |          none | Ending index. Omit it for no sweep; 0 is a valid target.                                   |
-| `detune`        | number   |           `0` | Pitch offset in cents, applied to `frequency` and `frequencyEnd`.                          |
-| `spatialX`      | number   |       omitted | Fixed left/right binaural direction; see [positioning](#binaural-front-plane-positioning). |
-| `spatialY`      | number   |       omitted | Fixed below/above binaural direction.                                                      |
-| `bus` | string | `effects` | Category: music, effects, ui or ambience. |
-| `effectSend` | number | omitted | Explicit processed share 0-1; replaces category selection. |
-| `priority` | integer | `0` | Admission priority 0-3; higher voices are protected. |
-| `variation` | dictionary | omitted | Optional attack-only ranges; see Native attack variation. |
+| Key             | Type       |       Default | Description                                                                                |
+| --------------- | ---------- | ------------: | ------------------------------------------------------------------------------------------ |
+| `frequency`     | number     |         `440` | Starting frequency in Hz. Cannot be combined with `note`.                                  |
+| `note`          | string     |          none | Note name. Cannot be combined with `frequency`.                                            |
+| `duration`      | integer    |         `500` | Total event length in ms.                                                                  |
+| `attack`        | integer    |          `50` | Fade-in time in ms.                                                                        |
+| `release`       | integer    |          `50` | Fade-out time in ms.                                                                       |
+| `volume`        | number     |           `1` | Event level multiplier.                                                                    |
+| `waveType`      | integer    |        `SINE` | One of the six waveform values.                                                            |
+| `pan`           | number     |           `0` | Starting stereo position.                                                                  |
+| `panEnd`        | number     | same as `pan` | Ending stereo position; omission keeps the position fixed.                                 |
+| `frequencyEnd`  | number     |           `0` | Ending frequency; values below 1 keep the starting pitch.                                  |
+| `lfoFreq`       | number     |           `0` | Vibrato rate in Hz.                                                                        |
+| `lfoDepth`      | number     |           `0` | Vibrato depth in Hz.                                                                       |
+| `noiseRate`     | number     |           `0` | Noise update rate; 0 produces a fresh value per sample.                                    |
+| `noiseRateEnd`  | number     |           `0` | Ending noise update rate; 0 disables the sweep.                                            |
+| `lowPassHz`     | number     |           `0` | Per-voice low-pass cutoff; 0 bypasses it.                                                  |
+| `pulseWidth`    | number     |         `0.5` | Duty cycle for `SQUARE`.                                                                   |
+| `pulseWidthEnd` | number     |           `0` | Ending duty cycle; 0 disables the sweep.                                                   |
+| `waveTable`     | number[]   |          none | Required for `WAVETABLE`; 2 to 64 normalized samples.                                      |
+| `bitDepth`      | integer    |           `0` | Amplitude quantization from 2 to 16 bits; 0 disables it.                                   |
+| `decay`         | integer    |           `0` | Milliseconds to fall from full level to `sustain` after the attack.                        |
+| `sustain`       | number     |           `1` | Level held after the decay, from 0 to 1.                                                   |
+| `filterType`    | string     |        `none` | `none`, `lowpass`, `highpass` or `bandpass`. Case-insensitive.                             |
+| `filterHz`      | number     |        `1000` | Cutoff, or center for `bandpass`, in Hz.                                                   |
+| `filterHzEnd`   | number     |           `0` | Ending cutoff; 0 disables the sweep.                                                       |
+| `filterQ`       | number     |      `0.7071` | Resonance, from 0.5 to 10.                                                                 |
+| `fmRatio`       | number     |           `1` | Modulator frequency as a multiple of the carrier.                                          |
+| `fmDepth`       | number     |           `0` | Modulation index; 0 leaves FM off unless `fmDepthEnd` is set.                              |
+| `fmDepthEnd`    | number     |          none | Ending index. Omit it for no sweep; 0 is a valid target.                                   |
+| `detune`        | number     |           `0` | Pitch offset in cents, applied to `frequency` and `frequencyEnd`.                          |
+| `spatialX`      | number     |       omitted | Fixed left/right binaural direction; see [positioning](#binaural-front-plane-positioning). |
+| `spatialY`      | number     |       omitted | Fixed below/above binaural direction.                                                      |
+| `bus`           | string     |     `effects` | Category: music, effects, ui or ambience.                                                  |
+| `effectSend`    | number     |       omitted | Explicit processed share 0-1; replaces category selection.                                 |
+| `priority`      | integer    |           `0` | Admission priority 0-3; higher voices are protected.                                       |
+| `variation`     | dictionary |       omitted | Optional attack-only ranges; see Native attack variation.                                  |
 
 Omitted attack/release values are shortened to fit an event smaller than the default envelope. Explicit values must satisfy the documented envelope rules. `getDefaults()` reports the baseline defaults, not these per-event adjustments.
+
+In the current 1.0.2/1.1.0 implementations, the iOS timed tone/chord command builder
+initially rounds accepted zero attack/release values to one sample, before
+trimming them to the event duration budget. Android retains zero samples.
+Validator acceptance does not imply identical zero-edge rendering. Held notes
+have the separately documented 3 ms minimum.
 
 The controls from `decay` to `detune` are described in [Expressive controls](#expressive-controls), including the rules that tie them together.
 
@@ -288,19 +295,19 @@ Returns Boolean acceptance. BPM is 20-300, initially 120. The change applies at 
 
 Returns a positive `sequenceId` on accepted atomic publication, or 0 on rejection. Identifiers never repeat during the module's lifetime, including across shutdown/start. Publication acceptance precedes application by the callback. Capacity exhaustion, unavailable banks or invalid options reject the complete operation.
 
-| Root field | Rule |
-| --- | --- |
-| `steps` | Required array of 1-512 step objects. |
-| `timeUnit` | `beats` (default) or `ms`, fixed for this sequence. One beat is a quarter note. |
-| `stepDuration` | Default 0.25 beats or 100 ms; maximum 300 beats or 60,000 ms. Minimum is four output samples at the highest tempo and maximum swing: `20 / sampleRate` beats or `4000 / sampleRate` ms. |
-| `gate` | 0.01-1, default 0.8; fraction of the effective interval before note release begins. |
-| `loop` | Boolean, default false. |
-| `swing` | −0.75…0.75, default 0. For intervals A/B, shifts `swing * min(A, B)` from the second interval to the first, preserving the pair's total length. Applies at the next pair. |
-| `mode` | `normal` (default), `up`, `down` or `updown`. Arpeggios traverse sounding steps in pitch order; rests participate only in normal mode. |
-| `tuning` | A4 frequency, 220-880 Hz, default 440. |
-| `detune` | MIDI pitch offset in cents, −1200…1200, default 0. |
-| `voice` | Inherited sound settings, listed below. |
-| `bus`, `effectSend`, `priority` | Inherited routing/admission settings; may also appear in `voice` or on each step. |
+| Root field                      | Rule                                                                                                                                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps`                         | Required array of 1-512 step objects.                                                                                                                                                   |
+| `timeUnit`                      | `beats` (default) or `ms`, fixed for this sequence. One beat is a quarter note.                                                                                                         |
+| `stepDuration`                  | Default 0.25 beats or 100 ms; maximum 300 beats or 60,000 ms. Minimum is four output samples at the highest tempo and maximum swing: `20 / sampleRate` beats or `4000 / sampleRate` ms. |
+| `gate`                          | 0.01-1, default 0.8; fraction of the effective interval before note release begins.                                                                                                     |
+| `loop`                          | Boolean, default false.                                                                                                                                                                 |
+| `swing`                         | −0.75…0.75, default 0. For intervals A/B, shifts `swing * min(A, B)` from the second interval to the first, preserving the pair's total length. Applies at the next pair.               |
+| `mode`                          | `normal` (default), `up`, `down` or `updown`. Arpeggios traverse sounding steps in pitch order; rests participate only in normal mode.                                                  |
+| `tuning`                        | A4 frequency, 220-880 Hz, default 440.                                                                                                                                                  |
+| `detune`                        | MIDI pitch offset in cents, −1200…1200, default 0.                                                                                                                                      |
+| `voice`                         | Inherited sound settings, listed below.                                                                                                                                                 |
+| `bus`, `effectSend`, `priority` | Inherited routing/admission settings; may also appear in `voice` or on each step.                                                                                                       |
 
 Each step contains exactly one representation: `notes` (1-32 MIDI integers, 12-119), `frequencies` (1-32 frequencies in Hz), or `rest: true`. Duplicate pitches produce unison voices. Optional `duration` changes the interval until the next attack; `length` explicitly sets note duration until release begins and replaces gate for that step. Both use the sequence's time unit (at most 300 beats or 60,000 ms). Note length is positive, at least 0.000001; intervals use the four-sample scheduling minimum. Notes can overlap later attacks. Step `gate` overrides root gate. `overrides` merges shaping over root `voice`.
 
@@ -337,14 +344,14 @@ Selected audio follows fixed input gain → chorus → ping-pong delay → rever
 
 Requires a running engine and returns Boolean acceptance. Partial updates merge into the last accepted processing configuration, validate the complete result and publish atomically. Continuous controls ramp over 10 ms. Unknown fields, numeric booleans and non-finite values reject the whole edit. Detect method presence before use.
 
-| Section | Fields and initial values |
-| --- | --- |
-| Root | `applyTo`: array of `music`, `effects`, `ui`, `ambience` initially; empty selects none. |
-| Root | `inputGain`: 0-4, initially 1. |
-| `chorus` | `enabled`: false; `rate`: 0.05-5 Hz, initially 0.8; `depth`: 0-1, initially 0.4; `mix`: 0-1, initially 0.25. Stereo interpolated delay with offset modulation phases. |
-| `delay` | `enabled`: false; `timeMs`: 20-2000, initially 250; `sync`: off; `feedback`: 0-0.85, initially 0.3; `mix`: 0-1, initially 0.25. Ping-pong feedback and crossfade between changed read positions, up to four seconds reserved. |
-| `reverb` | `enabled`: false; `decay`: 0.2-8 seconds, initially 1.5; `damping`: 0-1, initially 0.5; `mix`: 0-1, initially 0.2. Stereo damped comb/allpass Schroeder network. |
-| `saturation` | `enabled`: false; `drive`: 1-4, initially 1; `mix`: 0-1, initially 1. Creative soft waveshaping that changes timbre. |
+| Section      | Fields and initial values                                                                                                                                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Root         | `applyTo`: array of `music`, `effects`, `ui`, `ambience` initially; empty selects none.                                                                                                                                       |
+| Root         | `inputGain`: 0-4, initially 1.                                                                                                                                                                                                |
+| `chorus`     | `enabled`: false; `rate`: 0.05-5 Hz, initially 0.8; `depth`: 0-1, initially 0.4; `mix`: 0-1, initially 0.25. Stereo interpolated delay with offset modulation phases.                                                         |
+| `delay`      | `enabled`: false; `timeMs`: 20-2000, initially 250; `sync`: off; `feedback`: 0-0.85, initially 0.3; `mix`: 0-1, initially 0.25. Ping-pong feedback and crossfade between changed read positions, up to four seconds reserved. |
+| `reverb`     | `enabled`: false; `decay`: 0.2-8 seconds, initially 1.5; `damping`: 0-1, initially 0.5; `mix`: 0-1, initially 0.2. Stereo damped comb/allpass Schroeder network.                                                              |
+| `saturation` | `enabled`: false; `drive`: 1-4, initially 1; `mix`: 0-1, initially 1. Creative soft waveshaping that changes timbre.                                                                                                          |
 
 Delay sync accepts `off`, `quarter`, `eighth`, `sixteenth`, `quarterTriplet`, `eighthTriplet` or `sixteenthTriplet`. Sync follows the native transport BPM, initially 120. Disabling an effect gradually closes its input and drains its tail, then restores exact bypass. Tails are bounded to 30 seconds with a final fade. `stopAll()` performs panic: it fades voices, stops the new transport and invalidates effect histories in bounded work. `shutdown()` stops the stream and frees buffers outside the callback.
 
@@ -356,13 +363,13 @@ Defaults keep all effects and saturation disabled, input gain at unity, and pres
 
 `noteOn` and `updateVoice` accept `modulations`, an array of up to two LFO objects. An empty array disables them. Omission on update preserves the previous configuration. Each object accepts only these fields:
 
-| Field | Rule |
-| --- | --- |
-| `wave` | `sine` (default) or `triangle`. |
+| Field    | Rule                                                                                                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `wave`   | `sine` (default) or `triangle`.                                                                                                                                                                                          |
 | `target` | Required: `filterHz`, `pulseWidth` or `fmDepth`. Requires an active resonant filter, square source or sine source respectively. An explicit FM ratio with zero base depth is permitted when an FM-target LFO is enabled. |
-| `rate` | 0-20 Hz, default 1. Zero permits a stationary free-running phase. |
-| `depth` | 0-1, default 0; scales up to four cutoff octaves, 0.45 PWM offset or ten FM-index units. Two contributions sum with safe clamping. |
-| `sync` | Same musical values as delay; default off. Synced rates follow native tempo (up to 30 Hz at 300 BPM in sixteenth-note triplets). |
+| `rate`   | 0-20 Hz, default 1. Zero permits a stationary free-running phase.                                                                                                                                                        |
+| `depth`  | 0-1, default 0; scales up to four cutoff octaves, 0.45 PWM offset or ten FM-index units. Two contributions sum with safe clamping.                                                                                       |
+| `sync`   | Same musical values as delay; default off. Synced rates follow native tempo (up to 30 Hz at 300 BPM in sixteenth-note triplets).                                                                                         |
 
 Edits preserve oscillator/LFO phases. Continuous modulation contributions ramp over 10 ms; cutoff stays within 20 Hz and the frequency maximum, PWM within 0.05-0.95, FM index within 0-10. Initial modulations may also be inherited by sequence voices and overridden per step. These two slots coexist with the independent `lfoFreq`/`lfoDepth` pitch vibrato; they are not accepted by timed tones, chords .
 
@@ -370,36 +377,36 @@ Edits preserve oscillator/LFO phases. Continuous modulation contributions ramp o
 
 Starts 1 to 32 pitches as one atomic event. Exactly one pitch array is required.
 
-| Key           | Type     |              Default | Description                                                    |
-| ------------- | -------- | -------------------: | -------------------------------------------------------------- |
-| `frequencies` | number[] | required alternative | Frequencies in Hz.                                             |
-| `notes`       | string[] | required alternative | Note names.                                                    |
-| `duration`    | integer  |                `500` | Total chord length in ms.                                      |
-| `attack`      | integer  |                 `50` | Fade-in time in ms.                                            |
-| `release`     | integer  |                 `50` | Fade-out time in ms.                                           |
-| `volume`      | number   |                  `1` | Chord event level.                                             |
-| `waveType`    | integer  |               `SINE` | Waveform for every voice.                                      |
-| `panSpread`   | number   |                  `0` | Even stereo spread from 0 to 1.                                |
-| `pans`        | number[] |                 none | Per-note pan positions; overrides spread for supplied entries. |
-| `noiseRate`   | number   |                  `0` | Fixed update rate for noise voices.                            |
-| `lowPassHz`   | number   |                  `0` | Fixed low-pass cutoff for every voice.                         |
-| `pulseWidth`  | number   |                `0.5` | Fixed square-wave duty cycle.                                  |
-| `waveTable`   | number[] |                 none | Required when `waveType` is `WAVETABLE`.                       |
-| `bitDepth`    | integer  |                  `0` | Fixed amplitude quantization; 0 disables it.                   |
-| `decay`       | integer  |                  `0` | Fixed decay time shared by every voice.                        |
-| `sustain`     | number   |                  `1` | Fixed sustain level shared by every voice.                     |
-| `filterType`  | string   |               `none` | Fixed filter type for every voice.                             |
-| `filterHz`    | number   |               `1000` | Fixed cutoff or center in Hz.                                  |
-| `filterQ`     | number   |             `0.7071` | Fixed resonance.                                               |
-| `fmRatio`     | number   |                  `1` | Fixed modulator ratio.                                         |
-| `fmDepth`     | number   |                  `0` | Fixed modulation index; sine voices only.                      |
-| `detunes`     | number[] |                 none | Per-note offsets in cents, matched to the pitch array.         |
-| `spatialX`    | number   |              omitted | Shared fixed left/right binaural direction.                    |
-| `spatialY`    | number   |              omitted | Shared fixed below/above binaural direction.                   |
-| `bus` | string | `effects` | Category: music, effects, ui or ambience. |
-| `effectSend` | number | omitted | Explicit processed share 0-1; replaces category selection. |
-| `priority` | integer | `0` | Admission priority 0-3; higher voices are protected. |
-| `variation` | dictionary | omitted | Optional attack-only ranges; see Native attack variation. |
+| Key           | Type       |              Default | Description                                                    |
+| ------------- | ---------- | -------------------: | -------------------------------------------------------------- |
+| `frequencies` | number[]   | required alternative | Frequencies in Hz.                                             |
+| `notes`       | string[]   | required alternative | Note names.                                                    |
+| `duration`    | integer    |                `500` | Total chord length in ms.                                      |
+| `attack`      | integer    |                 `50` | Fade-in time in ms.                                            |
+| `release`     | integer    |                 `50` | Fade-out time in ms.                                           |
+| `volume`      | number     |                  `1` | Chord event level.                                             |
+| `waveType`    | integer    |               `SINE` | Waveform for every voice.                                      |
+| `panSpread`   | number     |                  `0` | Even stereo spread from 0 to 1.                                |
+| `pans`        | number[]   |                 none | Per-note pan positions; overrides spread for supplied entries. |
+| `noiseRate`   | number     |                  `0` | Fixed update rate for noise voices.                            |
+| `lowPassHz`   | number     |                  `0` | Fixed low-pass cutoff for every voice.                         |
+| `pulseWidth`  | number     |                `0.5` | Fixed square-wave duty cycle.                                  |
+| `waveTable`   | number[]   |                 none | Required when `waveType` is `WAVETABLE`.                       |
+| `bitDepth`    | integer    |                  `0` | Fixed amplitude quantization; 0 disables it.                   |
+| `decay`       | integer    |                  `0` | Fixed decay time shared by every voice.                        |
+| `sustain`     | number     |                  `1` | Fixed sustain level shared by every voice.                     |
+| `filterType`  | string     |               `none` | Fixed filter type for every voice.                             |
+| `filterHz`    | number     |               `1000` | Fixed cutoff or center in Hz.                                  |
+| `filterQ`     | number     |             `0.7071` | Fixed resonance.                                               |
+| `fmRatio`     | number     |                  `1` | Fixed modulator ratio.                                         |
+| `fmDepth`     | number     |                  `0` | Fixed modulation index; sine voices only.                      |
+| `detunes`     | number[]   |                 none | Per-note offsets in cents, matched to the pitch array.         |
+| `spatialX`    | number     |              omitted | Shared fixed left/right binaural direction.                    |
+| `spatialY`    | number     |              omitted | Shared fixed below/above binaural direction.                   |
+| `bus`         | string     |            `effects` | Category: music, effects, ui or ambience.                      |
+| `effectSend`  | number     |              omitted | Explicit processed share 0-1; replaces category selection.     |
+| `priority`    | integer    |                  `0` | Admission priority 0-3; higher voices are protected.           |
+| `variation`   | dictionary |              omitted | Optional attack-only ranges; see Native attack variation.      |
 
 `pans` and `detunes` cannot contain more entries than the pitch array, and missing detune entries count as 0. Missing `pans` entries use the position computed from `panSpread`, or 0 when no spread is set. `playChord` does not accept sweep, vibrato or `detune` fields.
 
@@ -510,32 +517,32 @@ event=validation_warning method=playTone key=duraton reason=unsupported_option a
 
 Common reasons include:
 
-| Reason                                   | Meaning                                                                                      |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `unsupported_option`                     | The option name is not part of that method or step.                                          |
-| `not_object`                             | A sequence step or options dictionary is not an object.                                                             |
-| `non_numeric_or_non_finite`              | A numeric field is the wrong type, `NaN` or infinite.                                        |
-| `not_integer`                            | An integer field contains a fractional number.                                               |
-| `out_of_range`                           | A number falls outside the documented range.                                                 |
-| `missing_required`                       | A required pitch array or `WAVETABLE` sample array is missing.                               |
-| `not_string`, `not_array`, `not_boolean` | A field has the wrong container or primitive type.                                           |
-| `invalid_note`                           | A note name cannot be parsed.                                                                |
-| `unsupported_note_value`                 | A note value is not one of the ten supported values.                                         |
-| `unsupported_value`                      | `mixingProfile`, `audioSession` or `filterType` is not one of the listed strings.            |
-| `invalid_sample_count`                   | `waveTable` has fewer than 2 or more than 64 samples.                                        |
-| `missing_pitch_or_rest`                  | A sounding event has no pitch and is not a rest.                                               |
-| `conflicting_pitch_fields`               | A call or step provides more than one pitch source.                                          |
+| Reason                                   | Meaning                                                                                             |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `unsupported_option`                     | The option name is not part of that method or step.                                                 |
+| `not_object`                             | A sequence step or options dictionary is not an object.                                             |
+| `non_numeric_or_non_finite`              | A numeric field is the wrong type, `NaN` or infinite.                                               |
+| `not_integer`                            | An integer field contains a fractional number.                                                      |
+| `out_of_range`                           | A number falls outside the documented range.                                                        |
+| `missing_required`                       | A required pitch array or `WAVETABLE` sample array is missing.                                      |
+| `not_string`, `not_array`, `not_boolean` | A field has the wrong container or primitive type.                                                  |
+| `invalid_note`                           | A note name cannot be parsed.                                                                       |
+| `unsupported_note_value`                 | A note value is not one of the ten supported values.                                                |
+| `unsupported_value`                      | `mixingProfile`, `audioSession` or `filterType` is not one of the listed strings.                   |
+| `invalid_sample_count`                   | `waveTable` has fewer than 2 or more than 64 samples.                                               |
+| `missing_pitch_or_rest`                  | A sounding event has no pitch and is not a rest.                                                    |
+| `conflicting_pitch_fields`               | A call or step provides more than one pitch source.                                                 |
 | `conflicting_spatial_fields`             | Spatial coordinates are combined with stereo pan fields, including inherited sequence voice values. |
-| `invalid_voice_count`                    | A chord has fewer than 1 or more than 32 pitches.                                            |
+| `invalid_voice_count`                    | A chord has fewer than 1 or more than 32 pitches.                                                   |
 | `invalid_step_count`                     | The step array has fewer than 1 or more than 512 entries.                                           |
-| `too_many_values`                        | `pans` or `detunes` is longer than the chord.                                                |
-| `attack_greater_or_equal_duration`       | An explicit attack leaves no time for the event.                                             |
-| `release_exceeds_remaining_duration`     | An explicit release does not fit after attack.                                               |
-| `decay_exceeds_remaining_duration`       | `attack` plus `decay` does not fit in the event.                                             |
-| `sustain_without_decay`                  | `sustain` is below 1 while `decay` is 0.                                                     |
-| `filter_type_required`                   | A filter key is set while `filterType` is `none`.                                            |
-| `fm_requires_sine`                       | FM is active on a waveform other than `SINE`.                                                |
-| `fm_depth_required`                      | `fmRatio` is set while FM is off.                                                            |
+| `too_many_values`                        | `pans` or `detunes` is longer than the chord.                                                       |
+| `attack_greater_or_equal_duration`       | An explicit attack leaves no time for the event.                                                    |
+| `release_exceeds_remaining_duration`     | An explicit release does not fit after attack.                                                      |
+| `decay_exceeds_remaining_duration`       | `attack` plus `decay` does not fit in the event.                                                    |
+| `sustain_without_decay`                  | `sustain` is below 1 while `decay` is 0.                                                            |
+| `filter_type_required`                   | A filter key is set while `filterType` is `none`.                                                   |
+| `fm_requires_sine`                       | FM is active on a waveform other than `SINE`.                                                       |
+| `fm_depth_required`                      | `fmRatio` is set while FM is off.                                                                   |
 
 Explicit values are not clamped. Read `getDefaults().limits` when accepting user input and decide in the app whether to reject or constrain it.
 
@@ -566,31 +573,38 @@ Use `typeof synth.getStats === 'function'` to check that the expected module is 
 
 Returns a new snapshot without resetting counters. Available before start and after shutdown. Occupancy is the last completed render block; queued commands are read at query time. No audio-thread allocation, locks or waiting are added.
 
-| Field                      | Meaning                                                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `activeVoices`             | Occupied primary slots, including binaural FIR draining.                                                                                |
-| `maxVoices`                | Configured primary-slot capacity (default 8 before start).                                                                              |
-| `peakActiveVoices`         | Highest primary occupancy since reset/start, including peaks between queries.                                                           |
-| `tailVoices`               | External fade tails from replacement or `stopAll`, excluding primary FIR drain.                                                         |
-| `spatialVoices`            | Spatial primary slots, including FIR draining; excludes external tails.                                                                 |
-| `voiceStealCount`          | Primary replacements while all slots are occupied.                                                                                      |
-| `rejectedRequestCount`     | Rejected Boolean API requests, counted once per call.                                                                                   |
-| `rejectedRequestsByReason` | `{ validation, engineStopped, queueFull }`; sum equals rejection total.                                                                 |
-| `priorityDropCount` | Events/chords dropped because eligible voices could not accommodate them. |
-| `rejectedPublicationCount` | Rejected sequence publications due to capacity or bank pressure. |
-| `pendingCommands`          | Published entries awaiting the renderer; chord notes count separately, future scheduler steps are excluded.                             |
-| `sampleRate`               | Current native rate, or the last rate after shutdown; 44100 before start.                                                               |
-| `callbackFrames`           | Frames processed in the most recent callback; 0 before start/after shutdown.                                                            |
-| `renderLoad`               | Last callback elapsed seconds / (`callbackFrames / sampleRate`); may exceed 1.                                                          |
-| `peakRenderLoad`           | Maximum callback load since diagnostics were enabled or statistics reset; accumulates across signal windows.                            |
-| `outputPeakDbFS`           | `{ left, right }` peaks of final float output in the latest completed approximately 200 ms window.                                      |
-| `outputRmsDbFS`            | `{ left, right }` RMS of that same window.                                                                                              |
-| `preLimiterPeakDb` | Maximum native peak before the limiter since reset, in dBFS; diagnostics required. |
-| `maxLimiterReductionDb` | Maximum native limiter attenuation since reset, in dB; diagnostics required. A brief intervention persists across UI polls. |
-| `limiterReductionDb`       | Maximum limiter attenuation in that window, as a positive dB magnitude.                                                                 |
-| `underrunCount`            | Android Oboe accumulated backend xruns since reset/start when supported; otherwise `null`.                                              |
-| `bufferFrames`             | Android Oboe output buffer size; otherwise `null`. This is distinct from `callbackFrames`.                                              |
-| `estimatedOutputLatencyMs` | Android timestamp-based stream-to-DAC estimate, when valid; otherwise `null` (always `null` on this iOS backend). |
+| Field                      | Meaning                                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `activeVoices`             | Occupied primary slots, including binaural FIR draining.                                                                    |
+| `maxVoices`                | Configured primary-slot capacity (default 8 before start).                                                                  |
+| `peakActiveVoices`         | Highest primary occupancy since reset/start, including peaks between queries.                                               |
+| `tailVoices`               | External fade tails from replacement or `stopAll`, excluding primary FIR drain.                                             |
+| `spatialVoices`            | Spatial primary slots, including FIR draining; excludes external tails.                                                     |
+| `voiceStealCount`          | Primary replacements while all slots are occupied.                                                                          |
+| `rejectedRequestCount`     | Counted API rejections, including sequence-publication rejection; not a complete rejected-call tally on every native path.  |
+| `rejectedRequestsByReason` | `{ validation, engineStopped, queueFull }`; sum equals the recorded rejection total.                                        |
+| `priorityDropCount`        | Events/chords dropped because eligible voices could not accommodate them.                                                   |
+| `rejectedPublicationCount` | Rejected sequence publications due to capacity or bank pressure.                                                            |
+| `pendingCommands`          | Published entries awaiting the renderer; chord notes count separately, future scheduler steps are excluded.                 |
+| `sampleRate`               | Current native rate, or the last rate after shutdown; 44100 before start.                                                   |
+| `callbackFrames`           | Frames processed in the most recent callback; 0 before start/after shutdown.                                                |
+| `renderLoad`               | Last callback elapsed seconds / (`callbackFrames / sampleRate`); may exceed 1.                                              |
+| `peakRenderLoad`           | Maximum callback load since diagnostics were enabled or statistics reset; accumulates across signal windows.                |
+| `outputPeakDbFS`           | `{ left, right }` peaks of final float output in the latest completed approximately 200 ms window.                          |
+| `outputRmsDbFS`            | `{ left, right }` RMS of that same window.                                                                                  |
+| `preLimiterPeakDb`         | Maximum native peak before the limiter since reset, in dBFS; diagnostics required.                                          |
+| `maxLimiterReductionDb`    | Maximum native limiter attenuation since reset, in dB; diagnostics required. A brief intervention persists across UI polls. |
+| `limiterReductionDb`       | Maximum limiter attenuation in that window, as a positive dB magnitude.                                                     |
+| `underrunCount`            | Android Oboe accumulated backend xruns since reset/start when supported; otherwise `null`.                                  |
+| `bufferFrames`             | Android Oboe output buffer size; otherwise `null`. This is distinct from `callbackFrames`.                                  |
+| `estimatedOutputLatencyMs` | Android timestamp-based stream-to-DAC estimate, when valid; otherwise `null` (always `null` on this iOS backend).           |
+
+In the current 1.0.2/1.1.0 implementations, iOS early rejections in tempo/sequence operations and a
+stopped `setMasterProcessing` call can bypass rejection counters. Incompatible
+held spatial-mode or modulation updates also have uncounted iOS returns.
+Android counts more of these cases, but an unknown/retired `stopSequence` return
+can also be uncounted. The reason sum equals the recorded total, not every
+rejected request. These counters are diagnostics; the API return is authoritative.
 
 `renderLoad`, `peakRenderLoad`, `outputPeakDbFS`, `outputRmsDbFS`, `preLimiterPeakDb`, `maxLimiterReductionDb` and `limiterReductionDb` are `null` until enabled and measured, and after shutdown. Android backend metrics (`underrunCount`, `bufferFrames` and `estimatedOutputLatencyMs`) are best-effort readings independent of this diagnostic switch. Signal windows use the final output after master volume, limiter and clamping, with a silence floor of -120 dBFS. A query does not start or consume a window. iOS does not expose a trustworthy underrun count or hardware output buffer size through this source-node backend, so those fields are `null`. Android preserves supported xrun totals across stream recovery and resets the baseline with `resetStats()`. If a route makes xrun coverage unavailable, the count stays `null` until reset/start restores a measurable window. The latency estimate excludes command/scheduler delay and any external DAC/HDMI latency unknown to Android. Timestamp errors, unsupported backends and negative estimates return `null`. It is queried off the audio callback. A zero underrun count does not prove clean sound. Render load includes elapsed callback work, not total app CPU.
 

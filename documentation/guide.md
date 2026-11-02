@@ -20,6 +20,8 @@ Put the archives in the Titanium project root or install them through the Titani
 
 TiSynthEngine requires Titanium SDK 13.2.0.GA or newer. Android projects must compile against API 35 or newer. The iOS module requires iOS 15 or newer.
 
+These declarations select the published 1.0.2 packages. Current source builds produce unpublished local 1.1.0 candidates; use the separate [candidate setup](#local-native-variation-candidate) below when testing native attack variation.
+
 ## Load and verify the contract
 
 Require the module once in the code that owns audio. Check `apiVersion` before starting. Also check the [spatial limits](#detect-the-installed-feature) and [statistics methods](#read-engine-statistics) if the app needs those features. Check [required capabilities](#detect-required-capabilities) for held voices, musical transport and master processing.
@@ -114,7 +116,7 @@ Store the positive identifier returned by `playSequence`, and include it in each
 synth.setTempo({ bpm: 112 })
 var sequenceId = synth.playSequence({
   stepDuration: 0.5, swing: 0.12, bus: 'music',
-  voice: { waveType: WAVE.SQUARE, volume: 0.55 },
+  voice: { waveType: contract.waveTypes.SQUARE, volume: 0.55 },
   steps: [{ notes: [60] }, { notes: [64], overrides: { pan: -0.4, panEnd: 0.4 } },
     { rest: true }, { notes: [67], duration: 1, length: 0.8 }]
 })
@@ -150,7 +152,7 @@ var accepted = synth.playTone({
 if (!accepted) Ti.API.warn('The tone was rejected')
 ```
 
-Calls that create or change sound return `true` when accepted and `false` when rejected. During development, handle that result and inspect logcat or the Xcode console for the structured validation warning.
+Timed and held sound calls and accepted edits return `true` when accepted and `false` when rejected. `playSequence` instead returns a positive sequence ID or `0`; state queries return their documented state or `null`, and lifecycle/cleanup methods follow their own return contracts. During development, handle the relevant result and inspect logcat or the Xcode console for the structured validation warning.
 
 ## Choose a pitch
 
@@ -336,7 +338,7 @@ synth.playChord({
 synth.setTempo({ bpm: 112 })
 var sequenceId = synth.playSequence({
   stepDuration: 0.5, swing: 0.12, bus: 'music',
-  voice: { waveType: WAVE.SQUARE, volume: 0.55 },
+  voice: { waveType: contract.waveTypes.SQUARE, volume: 0.55 },
   steps: [{ notes: [60] }, { notes: [64], overrides: { pan: -0.4, panEnd: 0.4 } },
     { rest: true }, { notes: [67], duration: 1, length: 0.8 }]
 })
@@ -480,7 +482,7 @@ if (!playPositionedTone(explosion, 900, 100, 1000, 800)) {
 
 Connect a Titanium switch's `change` event to `audioSettings.binaural = event.value`; connect the two sliders' `change` events to `horizontalPercent` and `heightPercent`. Configure slider minimum 0 and maximum 100, and disable the height slider while the switch is off. Validate restored preference values as finite numbers within those ranges before using them. Do not pass these preference names to `playTone`: that would return `false` with `unsupported_option`.
 
-Supply the current position whenever an effect fires. A projectile launch cue can use the launch position; an impact uses the collision position. Repeated short motor events can use successive positions. A single active tone cannot move after submission because positions remain fixed, including on an identified sustained voice. Stereo `panEnd` movement cannot be combined with binaural; do not continually retrigger long sounds every frame to imitate movement.
+Supply the current position whenever an effect fires. A projectile launch cue can use the launch position; an impact uses the collision position. Timed event positions remain fixed after submission. An identified sustained voice started spatially can instead change `spatialX`/`spatialY` through `updateVoice`, with 10 ms ramps and retained spatial history. A stereo voice cannot become spatial through an update. Stereo `panEnd` movement cannot be combined with binaural; do not continually retrigger long sounds every frame to imitate movement.
 
 ### Chords and patterns
 
@@ -576,4 +578,13 @@ Fixed event/input gain does not normalize continuously by active voice count. Co
 
 ## Local native-variation candidate
 
-Current source builds local 1.1.0 packages; select `version="1.1.0"` for both platforms when installing these candidates alongside published 1.0.2. They retain API 1.0.0. Require both variation announcements before sending its dictionary; see [native attack variation](native-variation.md). The candidates have not been published as a release.
+Current source builds unpublished local candidates at `android/dist/ti.synthengine-android-1.1.0.zip` and `ios/dist/ti.synthengine-iphone-1.1.0.zip`. Keep them separate from the published 1.0.2 packages. Install both matching candidates in the consumer app and select them explicitly:
+
+```xml
+<modules>
+  <module platform="android" version="1.1.0">ti.synthengine</module>
+  <module platform="iphone" version="1.1.0">ti.synthengine</module>
+</modules>
+```
+
+Rebuild and reinstall the application after replacing the native modules. Both package lines retain public API `1.0.0`; it does not identify variation support. Send a `variation` dictionary only when `getDefaults().capabilities.variation === true` and `getDefaults().variationSchemaVersion === 1`. If either announcement is absent, omit the property completely, including at amount zero. See [native attack variation](native-variation.md) for accepted locations, bounded ranges and seed behavior. The 1.1.0 candidates have not been published as a release.

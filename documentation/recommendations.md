@@ -32,7 +32,7 @@ If a phone buzzes under `speakerSafe`, lower the event volume or raise the pitch
 | Chords, keys or long release tails |       16 to 24 |
 | Explicit stress testing            |             32 |
 
-Count release tails along with buttons pressed at the same instant. Timed-only events steal the slot with the least time remaining; sustained/transport voices prefer a releasing slot, then the oldest attack. The short fade avoids a hard click; the stolen note still ends early.
+Count release tails along with buttons pressed at the same instant. Replacement first selects the lowest eligible priority; higher-priority voices are protected. Among that priority, timed-only events steal the slot with the least time remaining; sustained/transport voices prefer a releasing slot, then the oldest attack. The short fade avoids a hard click; the stolen note still ends early.
 
 ## Keep one lifecycle owner
 
@@ -85,7 +85,7 @@ Do not copy the frequency maximum into application code. It depends on the activ
 
 The same rule applies to `noiseRate`, `lowPassHz` and `filterHz`. Validate a custom `waveTable` as 2 to 64 finite values from -1 to 1, and remember that `bitDepth` accepts zero or an integer from 2 to 16. For `detune`, check the resulting pitch too: a shifted pitch that leaves the frequency range is rejected even when the cents value is in range.
 
-Check Boolean return values during development. A rejected call includes the method, key and reason in the native log. Logging that result at the caller is often enough to identify a stale preset or misspelled field.
+Check each method's documented return value during development: Boolean publication acceptance or a positive sequence ID, with 0 rejecting a sequence. Methods that emit structured validation warnings include the method, key and reason in the native log, but some sequence/control rejection paths do not log. Logging the return at the caller helps identify a stale preset or misspelled field without treating silence in the native log as acceptance.
 
 ## Test the intended sound
 
@@ -110,7 +110,7 @@ Use the [integration guide](guide.md#integrate-binaural-in-a-2d-app) to convert 
 ## Known limits
 
 - Use `noteOn` with app-supplied IDs for individual release and compatible live updates. Check the required methods before enabling controls; timed events do not return voice handles.
-- Timed tones, chords and pattern steps last at most 60 seconds. Sustained `noteOn` voices last until release, replacement or shutdown.
+- Timed tones and chords last at most 60 seconds including release. Sequence intervals and explicit note lengths use the sequence unit, at most 300 beats or 60,000 ms; sequence ADSR remains in milliseconds and release may extend beyond the interval. Sustained `noteOn` voices last until release, replacement or shutdown.
 - The module synthesizes waveforms and does not play audio files.
 - One native transport supports up to four independent sequences, preallocated by `maxSequences`. All share at most 32 voices.
 - A single tone or chord has no completion event. Sequences emit `sequenceend` with their identifier and completed/stopped reason.

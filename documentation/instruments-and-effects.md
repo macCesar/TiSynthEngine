@@ -6,13 +6,13 @@ These are application roles built on the same native synthesizer and output chai
 
 ## Choose the playback contract
 
-| Intention | Native methods | Who ends the sound? | What to preserve |
-| --- | --- | --- | --- |
-| Play a key until the finger lifts | `noteOn`, `updateVoice`, `noteOff` | The app releases its unique voice ID | Timbre, tuning, envelope, contact ownership |
-| Fire one finite sound | `playTone` | Native duration and release | Original frequency, endpoints, duration, envelope, gain |
-| Fire a simultaneous chord with shared shaping | `playChord` | Native duration and release | All pitches, per-note pan/detune, shared envelope, native chord compensation |
-| Play a melody, alarm, layered effect, or repeated firing pattern | `playSequence`, optionally `updateSequence` | Native step clock; `stopSequence` cancels future attacks | Complete ordered steps, rests, lengths, overrides and independent layers |
-| Add chorus, delay, reverb or creative saturation | `setMasterProcessing` | The shared processor owns its tails | Routing, sends, input gain, effect settings and output headroom |
+| Intention                                                        | Native methods                              | Who ends the sound?                                      | What to preserve                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Play a key until the finger lifts                                | `noteOn`, `updateVoice`, `noteOff`          | The app releases its unique voice ID                     | Timbre, tuning, envelope, contact ownership                                  |
+| Fire one finite sound                                            | `playTone`                                  | Native duration and release                              | Original frequency, endpoints, duration, envelope, gain                      |
+| Fire a simultaneous chord with shared shaping                    | `playChord`                                 | Native duration and release                              | All pitches, per-note pan/detune, shared envelope, native chord compensation |
+| Play a melody, alarm, layered effect, or repeated firing pattern | `playSequence`, optionally `updateSequence` | Native step clock; `stopSequence` cancels future attacks | Complete ordered steps, rests, lengths, overrides and independent layers     |
+| Add chorus, delay, reverb or creative saturation                 | `setMasterProcessing`                       | The shared processor owns its tails                      | Routing, sends, input gain, effect settings and output headroom              |
 
 The last row describes **audio processing effects**. Those processors are different from an authored **sound effect**, such as a laser or an explosion. A laser may use no reverb or delay at all.
 
@@ -134,7 +134,7 @@ The app can begin an independent first attack immediately and publish delayed na
 
 Keep every positive sequence ID. Releasing a momentary pad, disabling a fixed burst, switching presets, backgrounding the app, and pressing Stop should cancel the sequences owned by that panel. `stopSequence` releases that sequence's voices and cancels future attacks; independent timed calls already emitted are separate and finish naturally. Stop is different from global `stopAll`/shutdown panic.
 
-A successful stop request does not mean the native slot is already reusable. Wait for the matching `sequenceend` retirement when replacing a sequence; do not poll and enqueue a backlog of missed firing requests. Keep authored variant order explicit and advance it only for accepted work. There is no built-in public named-recipe registry or continuous random-variation option in this API release; application recipe functions are ordinary JavaScript.
+A successful stop request does not mean the native slot is already reusable. Wait for the matching `sequenceend` retirement when replacing a sequence; do not poll and enqueue a backlog of missed firing requests. Keep authored variant order explicit and advance it only for accepted work. Application recipe functions are ordinary JavaScript; there is no built-in public named-recipe registry. Local 1.1.0 candidates support optional [native per-attack variation](native-variation.md), which chooses once at each admitted attack, including native loop attacks. It does not continuously resample an already sounding voice, and `updateVoice` rejects the variation dictionary. Published 1.0.2 packages reject it entirely; require both the variation capability and schema announcement before adding that property.
 
 ## 4. Polyphony, gain and output protection
 
