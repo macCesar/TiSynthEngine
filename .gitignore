@@ -81,10 +81,10 @@ GEMINI.md
 # Local screen recordings used to review audio behavior
 *.mp4
 
-# Local screenshots dropped at the repository root
-/*.png
-/*.jpg
-/*.jpeg
+# Temporary numbered screenshots dropped at the repository root
+/[0-9]*.png
+/[0-9]*.jpg
+/[0-9]*.jpeg
 /screen-capture*
 /Captura*
 
