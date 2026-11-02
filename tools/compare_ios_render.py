@@ -15,8 +15,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("baseline", type=Path)
     p.add_argument("candidate", type=Path)
+    p.add_argument("--pcm-only",action="store_true",help="Compare PCM only when internal structure layouts differ")
     args = p.parse_args()
-    processes = [subprocess.Popen([str(binary), "--trace"], stdout=subprocess.PIPE)
+    processes = [subprocess.Popen([str(binary), "--pcm-trace" if args.pcm_only else "--trace"], stdout=subprocess.PIPE)
                  for binary in [args.baseline, args.candidate]]
     count = 0
     try:
@@ -29,8 +30,8 @@ def main():
             if not a:
                 break
         assert all(process.wait() == 0 for process in processes), "Renderer failed"
-        print(json.dumps({"byteExact": True, "comparedBytes": count, "scenarios": 120,
-                          "scope": "PCM for every fixture block and full original voice/tail/filter/FIR/limiter/effect/transport state at fixture checkpoints; no hardware/session acceptance"}))
+        print(json.dumps({"byteExact": True, "comparedBytes": count, "scenarios": 120, "pcmOnly": args.pcm_only,
+                          "scope": "PCM for every fixture block; state checkpoints included only without --pcm-only. No hardware/session acceptance"}))
     finally:
         for process in processes:
             if process.poll() is None:

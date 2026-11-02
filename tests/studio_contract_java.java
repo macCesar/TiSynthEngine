@@ -7,7 +7,7 @@ class StudioContractRegression {
  public static void main(String[] args){
   Map<String,Object> source=m("steps",new Object[]{m("notes",new Object[]{60,60,67}),m("rest",true)},"swing",.137);
   SynthStudioContract.Sequence s=SynthStudioContract.sequence(source,null,true,20000);
-  check(s.packet[0]==2&&s.packet[9]==3&&s.packet[12]==60&&s.packet[13]==60);
+  check(s.packet[0]==2&&s.packet[SynthStudioContract.HEADER]==3&&s.packet[SynthStudioContract.HEADER+3]==60&&s.packet[SynthStudioContract.HEADER+4]==60);
   source.put("swing",.2);check(((Number)s.options.get("swing")).doubleValue()==.137);
   SynthStudioContract.Sequence edited=SynthStudioContract.sequence(m("swing",.24),s,false,20000);check(edited.packet[2]==.24&&edited.packet[0]==2);
   rejects(()->SynthStudioContract.sequence(m("steps",new Object[]{m("notes",new Object[]{119})},"detune",1200),null,true,8000));

@@ -54,7 +54,7 @@ jobs:
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Werror tests/sequence_core_regression.c -lm -o "$RUNNER_TEMP/sequence"
           "$RUNNER_TEMP/sequence"
-          for source in unified_sequence transport_core routing_core spatial_update multisequence_clock sequence_replacement; do
+          for source in unified_sequence transport_core routing_core spatial_update multisequence_clock sequence_replacement variation_core variation_revision; do
             cc -std=c11 -O2 -Wall -Wextra -Werror "tests/${source}_regression.c" -lm -o "$RUNNER_TEMP/$source"
             "$RUNNER_TEMP/$source"
           done
@@ -104,6 +104,8 @@ jobs:
           python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-render"
           "$RUNNER_TEMP/apple-render" --output
           "$RUNNER_TEMP/apple-render" --metadata
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-variation" --driver tests/variation_render_ios.m
+          "$RUNNER_TEMP/apple-variation"
           "$RUNNER_TEMP/apple-render"
 
       - name: Apple spatial state regression
@@ -120,5 +122,7 @@ jobs:
           "$RUNNER_TEMP/studio-contract"
           clang -fobjc-arc -Wall -Wextra -framework Foundation tests/unified_contract_ios.m ios/Classes/TiSynthengineContract.m -o "$RUNNER_TEMP/unified-contract"
           "$RUNNER_TEMP/unified-contract"
+      - name: Paired native variation contracts
+        run: python3 tests/run_variation_contracts.py
       - name: iOS event polling and metadata retirement
         run: python3 tests/run_sequence_events_ios.py

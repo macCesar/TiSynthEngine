@@ -1,9 +1,11 @@
 #import <Foundation/Foundation.h>
 #include "../../shared/synth_sequence.h"
+#include "../../shared/synth_variation.h"
 #include "../../shared/synth_effects.h"
 
 @interface TiSynthengineContract : NSObject
 
++ (NSDictionary *)prepareVariation:(NSDictionary *)options config:(SynthVariation *)config;
 + (NSDictionary *)validateStart:(NSDictionary *)options;
 + (NSDictionary *)validateSetVolume:(NSDictionary *)options;
 + (NSDictionary *)validateNoteOn:(NSDictionary *)options maxFrequency:(double)maxFrequency;

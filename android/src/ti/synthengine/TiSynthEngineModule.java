@@ -215,6 +215,8 @@ public class TiSynthEngineModule extends KrollModule {
 
         KrollDict result = new KrollDict();
         KrollDict capabilities=new KrollDict();capabilities.put("nativeSequence",true);capabilities.put("masterProcessing",true);capabilities.put("modulations",true);
+        capabilities.put("variation",true);
+        result.put("variationSchemaVersion",1);
         result.put("capabilities",capabilities);
         result.put("apiVersion", SynthContract.API_VERSION);
         result.put("defaults", defaults);
@@ -723,6 +725,7 @@ public class TiSynthEngineModule extends KrollModule {
         extras[25]=SynthStudioContract.bus(options.getOrDefault("bus","effects"));
         extras[26]=containsKey(options,"effectSend")?((Number)options.get("effectSend")).doubleValue():-1;
         extras[27]=containsKey(options,"priority")?((Number)options.get("priority")).doubleValue():0;
+        System.arraycopy(SynthContract.variationPacket(options),0,extras,28,20);
         return extras;
     }
 

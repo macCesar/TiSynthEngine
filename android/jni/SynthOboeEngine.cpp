@@ -29,7 +29,7 @@ constexpr int kMaxWavetableSamples = 64;
 constexpr int kQueueCapacity = 128;
 // Mirrors SynthThread.EXTRA_*: decay ms, sustain, filter type, cutoff, cutoff
 // end, Q, FM ratio, FM depth, FM depth end (NaN = no sweep), spatial enabled, x, y.
-constexpr int kExtraCount = 28;
+constexpr int kExtraCount = 48;
 constexpr double kPi = 3.14159265358979323846;
 
 template <typename T> T clampValue(T value, T low, T high) {
@@ -105,6 +105,10 @@ double eventGain(int profile, int waveType, int voiceCount) {
 }
 
 struct Command {
+  SynthVariation variation{};
+  uint64_t variationAttack=0;
+  uint32_t variationOrdinal=0,variationSeed=0;
+  bool variationPrepared=false;
   int bus=SYNTH_BUS_EFFECTS, priority=0, groupCount=0;
   double effectSend=NAN;
   bool hasSpatialUpdate=false;
@@ -350,18 +354,20 @@ public:
   }
 
   bool publishSequence(uint32_t id,const double *packet,int size,bool restart) {
-    if(size<9)return false;
-    int count=(int)packet[0];if(count<1||count>512||size!=9+count*184)return false;
+    if(size<11)return false;
+    int count=(int)packet[0];if(count<1||count>512||size!=11+count*204)return false;
     std::lock_guard<std::mutex> guard(producerMutex_);
     auto *c=synth_transport_begin_write_full(&transport_,id,restart);if(!c)return false;
     // The bridge supplies a complete score. Initialize only its live steps and
     // header; the unused tail of a bank cannot affect preparation or playback.
     memset(c->steps,0,(size_t)count*sizeof(c->steps[0]));
     memset((char *)c+offsetof(SynthSequenceConfig,stepCount),0,sizeof(*c)-offsetof(SynthSequenceConfig,stepCount));
+    c->variationRootSeeded=(int)packet[9];c->variationRootSeed=(uint32_t)packet[10];
     c->stepCount=count;c->bpm=packet[1];c->swing=packet[2];c->loop=(int)packet[3];
     c->mode=(int)packet[4];c->tuning=packet[5];c->detune=packet[6];c->timeUnit=(int)packet[7];c->stepDuration=packet[8];
     for(int i=0;i<count;i++) {
-      const double *p=packet+9+i*184;auto &step=c->steps[i];auto &v=step.voice;
+      const double *p=packet+11+i*204;auto &step=c->steps[i];auto &v=step.voice;
+      v.variation=unpackVariation(p+184);
       step.noteCount=(int)p[0];step.rest=(int)p[1];step.gate=p[2];
       for(int n=0;n<32;n++)step.notes[n]=(uint8_t)p[3+n];
       v.volume=p[35];v.pan=p[36];v.frequencyEnd=p[37];v.lfoFreq=p[38];v.lfoDepth=p[39];
@@ -651,7 +657,13 @@ private:
       if(command.groupCount>0) {
         int slots[kMaxVoices];
         if(selectSlots(command.groupCount,command.priority,slots)) {
-          for(int n=0;n<command.groupCount;n++)startVoice(queue_[(read+n)%kQueueCapacity],slots[n]);
+          bool active=synth_variation_active(&command.variation);
+          uint64_t attack=active&&!command.variation.seeded?variationAttack_++:0;
+          for(int n=0;n<command.groupCount;n++) {
+            Command c=queue_[(read+n)%kQueueCapacity];
+            varyCommand(c,c.variation.seeded?c.variation.seed:variationSeed_,attack,(uint32_t)n);c.variationPrepared=true;
+            startVoice(c,slots[n]);
+          }
         } else priorityDrops_.fetch_add(1,std::memory_order_relaxed);
         read=(read+command.groupCount)%kQueueCapacity;continue;
       }
@@ -713,7 +725,35 @@ private:
       if(best<0)return false;used[best]=true;slots[n]=best;
     }return true;
   }
-  Voice *startVoice(const Command &command,int forcedSlot=-1) {
+public:
+  static SynthVariation unpackVariation(const double *p) {
+    SynthVariation v{};v.amount=p[0];v.mask=(uint16_t)p[1];v.seeded=(uint16_t)p[2];v.seed=(uint32_t)p[3];
+    for(int i=0;i<8;i++){v.low[i]=p[4+i*2];v.high[i]=p[5+i*2];}return v;
+  }
+  static void varyCommand(Command &c,uint32_t seed,uint64_t attack,uint32_t ordinal) {
+    const auto &v=c.variation;
+    if(!synth_variation_active(&v))return;
+    c.volume=synth_variation_value(&v,0,c.volume,seed,attack,ordinal);
+    c.filterHz=synth_variation_value(&v,1,c.filterHz,seed,attack,ordinal);
+    c.filterQ=synth_variation_value(&v,2,c.filterQ,seed,attack,ordinal);
+    c.fmDepth=synth_variation_value(&v,3,c.fmDepth,seed,attack,ordinal);
+    c.noiseRate=synth_variation_value(&v,4,c.noiseRate,seed,attack,ordinal);
+    c.lowPassHz=synth_variation_value(&v,5,c.lowPassHz,seed,attack,ordinal);
+    c.pulseWidth=synth_variation_value(&v,6,c.pulseWidth,seed,attack,ordinal);
+    double ratio=pow(2,synth_variation_value(&v,7,0,seed,attack,ordinal)/1200);
+    c.frequency*=ratio;if(c.frequencyEnd>=1)c.frequencyEnd*=ratio;
+  }
+  Voice *startVoice(const Command &input,int forcedSlot=-1) {
+    // Admission precedes any stream consumption, including held replacements.
+    int selected=forcedSlot;
+    if(selected<0&&input.voiceId)for(int i=0;i<maxVoices_;i++)if(voices_[i].active&&voices_[i].held.voiceId==input.voiceId){if(voices_[i].priority>input.priority)return nullptr;selected=i;break;}
+    if(selected<0&&!selectSlots(1,input.priority,&selected,input.type==SYNTH_CMD_HELD_ON))return nullptr;
+    forcedSlot=selected;
+    Command command=input;
+    if(synth_variation_active(&command.variation)&&!command.variationPrepared) {
+      uint64_t attack=command.variation.seeded?0:variationAttack_++;
+      varyCommand(command,command.variation.seeded?command.variation.seed:variationSeed_,attack,command.variationOrdinal);
+    }
     // Capture before slot selection/clearing: the donor can be the victim.
     bool inherit=false; uint64_t donorOrder=0;
     double inheritedPhase=0,inheritedFM=0,inheritedLFO=0,inheritedFilterState=0;
@@ -887,6 +927,9 @@ private:
     auto &slot=transport_.slots[slotIndex];
     const auto &config=slot.banks[event.bank];const auto &shape=config.steps[event.stepIndex].voice;
     int slots[kMaxVoices];if(!selectSlots(event.noteCount,shape.priority,slots,true)){priorityDrops_.fetch_add(1,std::memory_order_relaxed);return;}
+    bool varied=synth_variation_active(&shape.variation);
+    uint64_t attack=varied?slot.variationAttack++:0;
+    uint32_t seed=shape.variation.seeded?shape.variation.seed:synth_variation_word(variationSeed_,event.sequenceId,0,0);
     for(int n=0;n<event.noteCount;n++) {
       Command c;c.type=SYNTH_CMD_HELD_ON;c.voiceId=nextSequenceVoiceId_;
       nextSequenceVoiceId_=nextSequenceVoiceId_==INT32_MIN?-1:nextSequenceVoiceId_-1;
@@ -900,14 +943,21 @@ private:
       c.bus=shape.bus;c.effectSend=shape.effectSend;c.priority=shape.priority;
       c.modulations=unpackModulations(shape.mods);
       c.wavetableSize=shape.wavetableSize;std::copy(shape.wavetable,shape.wavetable+64,c.wavetable.begin());
+      c.variation=shape.variation;c.frequencyEnd=shape.frequencyEnd;
+      varyCommand(c,seed,attack,(uint32_t)n);c.variationPrepared=true;
+      // Native sequence trajectories retain the sampled starting shape.
+      SynthSequenceVoice sampled=shape;
+      sampled.volume=c.volume;sampled.filterHz=c.filterHz;sampled.filterQ=c.filterQ;sampled.fmDepth=c.fmDepth;
+      sampled.noiseRate=c.noiseRate;sampled.lowPassHz=c.lowPassHz;sampled.pulseWidth=c.pulseWidth;sampled.frequencyEnd=c.frequencyEnd;
+      c.frequencyEnd=0;
       Voice *v=startVoice(c,slots[n]);if(v){
-        v->sequenceShape=shape;
+        v->sequenceShape=sampled;
         v->sequenceSweeps=shape.frequencyEnd>0||shape.noiseRateEnd>0||shape.pan!=shape.panEnd||shape.pulseWidthEnd>=.05||shape.fmDepthSweep||shape.filterHzEnd>=SYNTH_FILTER_MIN_HZ;
         v->sequenceOwned=true;v->sequenceTimed=true;v->sequenceSlot=slotIndex;v->sequenceId=event.sequenceId;
         v->sequenceUnit=config.timeUnit;v->sequenceStep=event.stepIndex;v->sequenceMidi=event.notes[n];
         v->sequenceOffBeat=(config.timeUnit==SYNTH_SEQUENCE_MS?transport_.milliseconds:transport_.beat)+event.length;
         v->sequenceGeneration=event.generation;
-        if(shape.frequencyEnd>0){v->sequenceStartFrequency=c.frequency;v->sequenceEndFrequency=shape.frequencyEnd;}
+        if(shape.frequencyEnd>0){v->sequenceStartFrequency=c.frequency;v->sequenceEndFrequency=sampled.frequencyEnd;}
         v->sequenceLength=event.length;v->sequenceStarted=v->sequenceOffBeat-event.length;
       }
     }
@@ -1186,6 +1236,8 @@ private:
   std::atomic<bool> runningRequested_{false};
   std::atomic<bool> emergencyStopRequested_{false};
   std::atomic<bool> closing_{false};
+  uint32_t variationSeed_=(uint32_t)std::chrono::steady_clock::now().time_since_epoch().count();
+  uint64_t variationAttack_=0;
   std::array<Command, kQueueCapacity> queue_{};
   std::atomic<uint32_t> read_{0}, write_{0};
   std::mutex producerMutex_;
@@ -1244,6 +1296,7 @@ void applyExtras(JNIEnv *env, Command &command, jdoubleArray extras,
     const int count = std::min<int>(env->GetArrayLength(extras), kExtraCount);
     env->GetDoubleArrayRegion(extras, 0, count, v);
   }
+  command.variation=Engine::unpackVariation(v+28);
   command.decay = std::max(0, static_cast<int>(v[0] * sampleRate / 1000.0));
   command.sustain = v[1];
   command.filterType = static_cast<int>(v[2]);

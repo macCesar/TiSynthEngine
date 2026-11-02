@@ -4,6 +4,7 @@
 #ifndef SYNTH_SEQUENCE_H
 #define SYNTH_SEQUENCE_H
 #include <stdint.h>
+#include "synth_variation.h"
 #include <string.h>
 #include <math.h>
 #define SYNTH_SEQUENCE_MAX_STEPS 512
@@ -13,6 +14,7 @@
 enum { SYNTH_SEQUENCE_BEATS, SYNTH_SEQUENCE_MS };
 enum { SYNTH_SEQUENCE_NORMAL, SYNTH_SEQUENCE_UP, SYNTH_SEQUENCE_DOWN, SYNTH_SEQUENCE_UPDOWN };
 typedef struct {
+ SynthVariation variation;
  double volume,pan,frequencyEnd,lfoFreq,lfoDepth,noiseRate,lowPassHz,pulseWidth;
  double filterHz,filterQ,fmRatio,fmDepth,spatialX,spatialY,sustain;
  double wavetable[64],mods[12];
@@ -33,6 +35,8 @@ typedef struct {
  double bpm,swing,tuning,detune,stepDuration;
  int timeUnit;
  uint32_t revision;
+ uint32_t variationRootSeed,variationSeeds[SYNTH_SEQUENCE_MAX_STEPS];
+ int variationRootSeeded,variationSeedCount;
  /* Prepared by the producer, never sorted in the callback. */
  int order[SYNTH_SEQUENCE_MAX_STEPS],orderCount;
 } SynthSequenceConfig;
@@ -58,7 +62,7 @@ typedef struct {
  uint32_t nextRevision;
  double sampleRate,beat,nextBeat,bpm,swing,beatCompensation,pairShift;
  int playing,cursor,pairIndex,lastStep;
- uint64_t generation;
+ uint64_t generation,variationAttack;
  /* Atomic scalar snapshot avoids C/C++ data races in state readers. */
  uint32_t snapshotSequence,snapshotPlaying,snapshotStep,snapshotRevision;
  uint64_t snapshotBeat __attribute__((aligned(8))),snapshotBpm,snapshotGeneration;
@@ -103,7 +107,7 @@ static inline int synth_sequence_prepare(SynthSequenceConfig *c) {
     c->timeUnit<0||c->timeUnit>1||!isfinite(c->stepDuration)||c->stepDuration<=0||
     !isfinite(c->bpm)||c->bpm<20||c->bpm>300||!isfinite(c->swing)||c->swing<-.75||c->swing>.75||
     !isfinite(c->tuning)||c->tuning<220||c->tuning>880||!isfinite(c->detune)||fabs(c->detune)>1200) return 0;
- c->orderCount=0;
+ c->orderCount=0;c->variationSeedCount=0;
  for(int i=0;i<c->stepCount;i++) {
   SynthSequenceStep *s=&c->steps[i];
   if(!isfinite(s->gate)||s->gate<.01||s->gate>1||s->noteCount<0||s->noteCount>32||(!s->rest&&!s->noteCount)) return 0;
@@ -112,6 +116,13 @@ static inline int synth_sequence_prepare(SynthSequenceConfig *c) {
    if(!isfinite(s->frequencies[n])||s->frequencies[n]<0) return 0;
    if(s->frequencies[n]==0&&(s->notes[n]<12||s->notes[n]>119)) return 0;
    s->preparedFrequencies[n]=s->frequencies[n]>0?s->frequencies[n]:c->tuning*pow(2.0,((double)s->notes[n]-69+c->detune/100)/12);
+  }
+  if(s->voice.variation.seeded&SYNTH_VAR_STEP_SEED) {
+   // Authored seed declarations, sorted on the producer: ordinary step moves
+   // and inherited rests cannot change sequence stream identity.
+   uint32_t seed=s->voice.variation.seed;int at=c->variationSeedCount++;
+   while(at>0&&c->variationSeeds[at-1]>seed){c->variationSeeds[at]=c->variationSeeds[at-1];at--;}
+   c->variationSeeds[at]=seed;
   }
   if(c->mode==SYNTH_SEQUENCE_NORMAL||(!s->rest&&s->noteCount)) c->order[c->orderCount++]=i;
  }
@@ -188,6 +199,15 @@ static inline void synth_sequence_apply_pending(SynthSequenceTransport *t) {
  if(!t->pendingRestart&&old>=0&&t->banks[old].timeUnit!=t->banks[t->pending].timeUnit) {
   __atomic_store_n(&t->bankState[t->pending],0,__ATOMIC_RELEASE);t->pending=-1;return;
  }
+ int resetVariation=t->pendingRestart;
+ if(old>=0&&!resetVariation) {
+  const SynthSequenceConfig *a=&t->banks[old],*b=&t->banks[t->pending];
+  resetVariation=a->variationRootSeeded!=b->variationRootSeeded||
+   (a->variationRootSeeded&&a->variationRootSeed!=b->variationRootSeed)||
+   a->variationSeedCount!=b->variationSeedCount||
+   memcmp(a->variationSeeds,b->variationSeeds,(size_t)a->variationSeedCount*sizeof(uint32_t))!=0;
+ }
+ if(resetVariation)t->variationAttack=0;
  t->active=t->pending;t->pending=-1;
  if(old>=0)__atomic_store_n(&t->bankState[old],0,__ATOMIC_RELEASE);
  if(t->pendingRestart) {

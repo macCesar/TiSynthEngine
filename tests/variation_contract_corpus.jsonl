@@ -1,0 +1,153 @@
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0.5, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 1, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": null}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": false}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": []}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": true}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": -1}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 1.01}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"seed": -1}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"seed": 4294967296}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"seed": 0.5}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"seed": true}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"unknown": 1}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": []}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"volume": [1, 0]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"volume": [0]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"volume": [0, 1, 2]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"volume": [false, 1]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"volume": [0, 2.01]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"duration": [1, 2]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"pitchCents": [-1201, 0]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"fmDepth": [0, 11]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"filterHz": [20, 2000]}}, "filterType": "lowpass"}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "ranges": {"filterHz": [20, 2000]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"filterQ": [0.5, 10]}}, "filterType": "highpass"}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "ranges": {"filterQ": [0.5, 10]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"fmDepth": [0, 10]}}}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"noiseRate": [1, 2000]}}, "waveType": 4, "noiseRate": 500}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "ranges": {"noiseRate": [1, 2000]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"lowPassHz": [20, 2000]}}, "lowPassHz": 1000}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "ranges": {"lowPassHz": [20, 2000]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"pulseWidth": [0.05, 0.95]}}, "waveType": 1}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"amount": 0, "ranges": {"pulseWidth": [0.05, 0.95]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 440, "variation": {"seed": 4294967295, "ranges": {}}}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "variation": {"ranges": {"fmDepth": [0, 1]}}, "fmRatio": 2, "fmDepth": 0}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0.5, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 1, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": null}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": false}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": []}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": true}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": -1}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 1.01}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"seed": -1}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"seed": 4294967296}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"seed": 0.5}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"seed": true}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"unknown": 1}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": []}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"volume": [1, 0]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"volume": [0]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"volume": [0, 1, 2]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"volume": [false, 1]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"volume": [0, 2.01]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"duration": [1, 2]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"pitchCents": [-1201, 0]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"fmDepth": [0, 11]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"filterHz": [20, 2000]}}, "filterType": "lowpass"}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "ranges": {"filterHz": [20, 2000]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"filterQ": [0.5, 10]}}, "filterType": "highpass"}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "ranges": {"filterQ": [0.5, 10]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"fmDepth": [0, 10]}}}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"noiseRate": [1, 2000]}}, "waveType": 4, "noiseRate": 500}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "ranges": {"noiseRate": [1, 2000]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"lowPassHz": [20, 2000]}}, "lowPassHz": 1000}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "ranges": {"lowPassHz": [20, 2000]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"pulseWidth": [0.05, 0.95]}}, "waveType": 1}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"amount": 0, "ranges": {"pulseWidth": [0.05, 0.95]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"seed": 4294967295, "ranges": {}}}, "accepted": true}
+{"api": "chord", "options": {"frequencies": [440, 660], "variation": {"ranges": {"fmDepth": [0, 1]}}, "fmRatio": 2, "fmDepth": 0}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0.5, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 1, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": null}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": false}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": []}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": true}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": -1}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 1.01}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"seed": -1}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"seed": 4294967296}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"seed": 0.5}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"seed": true}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"unknown": 1}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": []}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"volume": [1, 0]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"volume": [0]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"volume": [0, 1, 2]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"volume": [false, 1]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"volume": [0, 2.01]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"duration": [1, 2]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"pitchCents": [-1201, 0]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"fmDepth": [0, 11]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"filterHz": [20, 2000]}}, "filterType": "lowpass"}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "ranges": {"filterHz": [20, 2000]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"filterQ": [0.5, 10]}}, "filterType": "highpass"}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "ranges": {"filterQ": [0.5, 10]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"fmDepth": [0, 10]}}}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"noiseRate": [1, 2000]}}, "waveType": 4, "noiseRate": 500}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "ranges": {"noiseRate": [1, 2000]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"lowPassHz": [20, 2000]}}, "lowPassHz": 1000}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "ranges": {"lowPassHz": [20, 2000]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"pulseWidth": [0.05, 0.95]}}, "waveType": 1}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"amount": 0, "ranges": {"pulseWidth": [0.05, 0.95]}}}, "accepted": false}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"seed": 4294967295, "ranges": {}}}, "accepted": true}
+{"api": "noteOn", "options": {"voiceId": 1, "frequency": 440, "variation": {"ranges": {"fmDepth": [0, 1]}}, "fmRatio": 2, "fmDepth": 0}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0.5, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 1, "seed": 0, "ranges": {"volume": [0.5, 1], "pitchCents": [-12, 12]}}}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": null}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": false}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": []}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": true}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": -1}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 1.01}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": -1}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": 4294967296}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": 0.5}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": true}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"unknown": 1}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": []}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"volume": [1, 0]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"volume": [0]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"volume": [0, 1, 2]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"volume": [false, 1]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"volume": [0, 2.01]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"duration": [1, 2]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"pitchCents": [-1201, 0]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"fmDepth": [0, 11]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"filterHz": [20, 2000]}}, "filterType": "lowpass"}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "ranges": {"filterHz": [20, 2000]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"filterQ": [0.5, 10]}}, "filterType": "highpass"}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "ranges": {"filterQ": [0.5, 10]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"fmDepth": [0, 10]}}}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"noiseRate": [1, 2000]}}, "waveType": 4, "noiseRate": 500}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "ranges": {"noiseRate": [1, 2000]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"lowPassHz": [20, 2000]}}, "lowPassHz": 1000}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "ranges": {"lowPassHz": [20, 2000]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"pulseWidth": [0.05, 0.95]}}, "waveType": 1}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"amount": 0, "ranges": {"pulseWidth": [0.05, 0.95]}}}, "steps": [{"notes": [69]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": 4294967295, "ranges": {}}}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "sequence", "options": {"voice": {"variation": {"ranges": {"fmDepth": [0, 1]}}, "fmRatio": 2, "fmDepth": 0}, "steps": [{"notes": [69]}]}, "accepted": true}
+{"api": "tone", "options": {"frequency": 440, "frequencyEnd": 15000, "variation": {"ranges": {"pitchCents": [0, 1200]}}}, "accepted": false}
+{"api": "tone", "options": {"frequency": 15000, "detune": 600, "variation": {"ranges": {"pitchCents": [0, 600]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 15000], "variation": {"ranges": {"pitchCents": [0, 1200]}}}, "accepted": false}
+{"api": "chord", "options": {"frequencies": [440, 9000], "detunes": [0, 1200], "variation": {"ranges": {"pitchCents": [0, 300]}}}, "accepted": false}
+{"api": "updateVoice", "options": {"voiceId": 1, "variation": {"amount": 0}}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": 0, "ranges": {"fmDepth": [0, 1]}}}, "steps": [{"notes": [69], "overrides": {"waveType": 4}}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"variation": {"seed": 0, "ranges": {"fmDepth": [0, 1]}}}, "steps": [{"notes": [69], "overrides": {"waveType": 4, "variation": {"amount": 0}}}]}, "accepted": true}
+{"api": "sequence", "options": {"tuning": 880, "detune": 1200, "voice": {"variation": {"ranges": {"pitchCents": [0, 1200]}}}, "steps": [{"notes": [100]}]}, "accepted": false}
+{"api": "sequence", "options": {"voice": {"frequencyEnd": 15000, "variation": {"ranges": {"pitchCents": [0, 1200]}}}, "steps": [{"notes": [69]}]}, "accepted": false}

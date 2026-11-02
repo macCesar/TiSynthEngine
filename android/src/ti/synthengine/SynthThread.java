@@ -21,7 +21,7 @@ public final class SynthThread {
     static final int EXTRA_SPATIAL_X = 10;
     static final int EXTRA_SPATIAL_Y = 11;
     static final int EXTRA_VOICE_ID = 12;
-    static final int EXTRA_COUNT = 28;
+    static final int EXTRA_COUNT = 48;
 
     private long nativeHandle;
 

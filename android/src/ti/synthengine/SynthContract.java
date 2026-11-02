@@ -100,6 +100,52 @@ final class SynthContract {
         }
     }
 
+    // Packet schema: amount, mask, seed-presence, seed, then stable low/high slots.
+    static final String[] VARIATION_FIELDS={"volume","filterHz","filterQ","fmDepth","noiseRate","lowPassHz","pulseWidth","pitchCents"};
+    static double[] variationPacket(Map<String,Object> options) {
+        double[] out=new double[20];
+        if(!contains(options,"variation"))return out;
+        Map<String,Object> v=SynthStudioContract.map(options.get("variation"));
+        SynthStudioContract.keys(v,"amount","ranges","seed");
+        out[0]=SynthStudioContract.number(v,"amount",1,0,1);
+        if(v.containsKey("seed")) {
+            out[2]=1;out[3]=SynthStudioContract.number(v,"seed",0,0,4294967295.0);
+            if(out[3]!=Math.rint(out[3]))throw new IllegalArgumentException("seed");
+        }
+        if(v.containsKey("ranges")) {
+            Map<String,Object> ranges=SynthStudioContract.map(v.get("ranges"));
+            SynthStudioContract.keys(ranges,VARIATION_FIELDS);
+            for(int i=0;i<8;i++)if(ranges.containsKey(VARIATION_FIELDS[i])) {
+                Object raw=ranges.get(VARIATION_FIELDS[i]);
+                if(!(raw instanceof Object[])||((Object[])raw).length!=2)throw new IllegalArgumentException("range");
+                Object[] a=(Object[])raw;
+                if(!(a[0] instanceof Number)||!(a[1] instanceof Number))throw new IllegalArgumentException("range");
+                double lo=((Number)a[0]).doubleValue(),hi=((Number)a[1]).doubleValue();
+                if(!Double.isFinite(lo)||!Double.isFinite(hi)||lo>hi)throw new IllegalArgumentException("range");
+                out[1]=(int)out[1]|(1<<i);out[4+2*i]=lo;out[5+2*i]=hi;
+            }
+        }
+        return out;
+    }
+    static Validation validateVariation(Map<String,Object> options,double frequency,double end,double maxHz) {
+        if(!contains(options,"variation"))return Validation.accepted();
+        try {
+            double[] v=variationPacket(options);
+            double[] min={0,20,.5,0,1,20,.05,-1200},max={2,maxHz,10,10,maxHz,maxHz,.95,1200};
+            int wave=readInteger(options,"waveType",0),filter=contains(options,"filterType")?filterTypeIndex((String)options.get("filterType")):0;
+            double noise=contains(options,"noiseRate")?finiteDouble(options.get("noiseRate")):0;
+            double lowpass=contains(options,"lowPassHz")?finiteDouble(options.get("lowPassHz")):0;
+            for(int i=0;i<8;i++)if(((int)v[1]&(1<<i))!=0) {
+                if(v[4+2*i]<min[i]||v[5+2*i]>max[i]||((i==1||i==2)&&filter==0)||(i==3&&wave!=0)||(i==4&&(wave!=4||noise<1))||(i==5&&lowpass<20)||(i==6&&wave!=1))throw new IllegalArgumentException("range/source");
+            }
+            if(((int)v[1]&128)!=0) {
+                double lo=Math.pow(2,v[0]*v[18]/1200),hi=Math.pow(2,v[0]*v[19]/1200);
+                if(frequency*lo<1||frequency*hi>maxHz||(end>=1&&(end*lo<1||end*hi>maxHz)))throw new IllegalArgumentException("pitch");
+            }
+            return Validation.accepted();
+        }catch(IllegalArgumentException|ClassCastException|NullPointerException e){return Validation.rejected("variation","invalid_variation",options.get("variation"));}
+    }
+
     private SynthContract() {}
 
     static Validation validateStart(Map<String, Object> options) {
@@ -158,7 +204,7 @@ final class SynthContract {
     static Validation validateNoteOn(Map<String, Object> options, double maxFrequencyHz) {
         Validation result = rejectUnknownOptions(options, "voiceId", "frequency", "note", "attack", "decay", "sustain", "release", "volume",
                 "waveType", "pan", "lfoFreq", "lfoDepth", "noiseRate", "lowPassHz", "pulseWidth", "waveTable", "bitDepth",
-                "filterType", "filterHz", "filterQ", "fmRatio", "fmDepth", "detune", "spatialX", "spatialY", "modulations", "bus", "effectSend", "priority");
+                "filterType", "filterHz", "filterQ", "fmRatio", "fmDepth", "detune", "spatialX", "spatialY", "modulations", "bus", "effectSend", "priority", "variation");
         if (!result.accepted) return result;
         result = validateVoiceId(options); if (!result.accepted) return result;
         Map<String, Object> tone = new java.util.HashMap<>(options);
@@ -200,7 +246,7 @@ final class SynthContract {
                 "waveType", "pan", "panEnd", "frequencyEnd", "lfoFreq", "lfoDepth",
                 "noiseRate", "noiseRateEnd", "lowPassHz", "pulseWidth", "pulseWidthEnd",
                 "waveTable", "bitDepth", "decay", "sustain", "filterType", "filterHz",
-                "filterHzEnd", "filterQ", "fmRatio", "fmDepth", "fmDepthEnd", "detune", "spatialX", "spatialY", "bus", "effectSend", "priority");
+                "filterHzEnd", "filterQ", "fmRatio", "fmDepth", "fmDepthEnd", "detune", "spatialX", "spatialY", "bus", "effectSend", "priority", "variation");
         if (!result.accepted) return result;
 
         boolean hasFrequency = contains(options, "frequency");
@@ -227,7 +273,10 @@ final class SynthContract {
         if (!result.accepted) return result;
         double toneFrequency = hasNote ? parseNoteToFrequency((String) options.get("note"))
                 : (hasFrequency ? finiteDouble(options.get("frequency")) : DEFAULT_FREQUENCY_HZ);
-        return validateDetuneRange(options, toneFrequency, maxFrequencyHz);
+        result=validateDetuneRange(options, toneFrequency, maxFrequencyHz);
+        if(!result.accepted)return result;
+        double ratio=detuneRatio(contains(options,"detune")?finiteDouble(options.get("detune")):0);
+        return validateVariation(options,toneFrequency*ratio,(contains(options,"frequencyEnd")?finiteDouble(options.get("frequencyEnd")):0)*ratio,maxFrequencyHz);
     }
 
     static Validation validateChord(Map<String, Object> options, double maxFrequencyHz) {
@@ -235,7 +284,7 @@ final class SynthContract {
                 "frequencies", "notes", "duration", "attack", "release", "volume",
                 "waveType", "panSpread", "pans", "noiseRate", "lowPassHz",
                 "pulseWidth", "waveTable", "bitDepth", "decay", "sustain", "filterType",
-                "filterHz", "filterQ", "fmRatio", "fmDepth", "detunes", "spatialX", "spatialY", "bus", "effectSend", "priority");
+                "filterHz", "filterQ", "fmRatio", "fmDepth", "detunes", "spatialX", "spatialY", "bus", "effectSend", "priority", "variation");
         if (!result.accepted) return result;
 
         boolean hasFrequencies = contains(options, "frequencies");
@@ -311,6 +360,11 @@ final class SynthContract {
                     return Validation.rejected("detunes", "out_of_range", detunes[i]);
                 }
             }
+        }
+        for(int i=0;i<pitches.length;i++) {
+            double base=hasFrequencies?finiteDouble(pitches[i]):parseNoteToFrequency((String)pitches[i]);
+            double ratio=detuneRatio(detunes!=null&&i<detunes.length?finiteDouble(detunes[i]):0);
+            result=validateVariation(options,base*ratio,0,maxFrequencyHz);if(!result.accepted)return result;
         }
         return Validation.accepted();
     }
@@ -492,6 +546,10 @@ final class SynthContract {
      * Rules that span several keys, evaluated on the effective values of one
      * sounding event (a pattern step already merged over its pattern root).
      */
+    private static boolean variationEnablesFm(Map<String,Object> options) {
+        try {double[] v=variationPacket(options);return v[0]>0&&((int)v[1]&8)!=0&&v[11]>0;}
+        catch(IllegalArgumentException|ClassCastException e){return false;}
+    }
     private static Validation validateExpressiveRules(Map<String, Object> eff, int durationMs) {
         int decay = readInteger(eff, "decay", DEFAULT_DECAY_MS);
         if (contains(eff, "sustain") && finiteDouble(eff.get("sustain")) < 1.0 && decay == 0) {
@@ -513,7 +571,7 @@ final class SynthContract {
         }
 
         double depth = contains(eff, "fmDepth") ? finiteDouble(eff.get("fmDepth")) : DEFAULT_FM_DEPTH;
-        boolean fmActive = depth > 0.0 || contains(eff, "fmDepthEnd");
+        boolean fmActive = depth > 0.0 || contains(eff, "fmDepthEnd") || variationEnablesFm(eff);
         if (fmActive && integerValue(eff, "waveType", DEFAULT_WAVE_TYPE) != 0) {
             String key = depth > 0.0 ? "fmDepth" : "fmDepthEnd";
             return Validation.rejected(key, "fm_requires_sine", eff.get(key));

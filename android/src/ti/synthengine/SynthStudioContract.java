@@ -6,7 +6,7 @@ import java.util.Map;
 
 /** Pure Java preflight. Nothing reaches the callback until the entire edit validates. */
 final class SynthStudioContract {
-    static final int STEP_WIDTH=184, HEADER=9;
+    static final int STEP_WIDTH=204, HEADER=11;
     static final class Sequence {
         final Map<String,Object> options; final double[] packet;
         Sequence(Map<String,Object> options,double[] packet){this.options=options;this.packet=packet;}
@@ -85,6 +85,7 @@ final class SynthStudioContract {
         Map<String,Object> root=options.containsKey("voice")?map(options.get("voice")):new HashMap<>();
         for(String k:new String[]{"bus","effectSend","priority"})if(options.containsKey(k))root.put(k,options.get(k));
         double[] packet=new double[HEADER+STEP_WIDTH*steps.length];
+        double[] rootVariation=SynthContract.variationPacket(root);packet[9]=rootVariation[2];packet[10]=rootVariation[3];
         packet[0]=steps.length;packet[1]=120;packet[2]=swing;packet[3]=loop?1:0;packet[4]=modeIndex;packet[5]=tuning;packet[6]=detune;packet[7]=unit.equals("ms")?1:0;packet[8]=interval;
         for(int i=0;i<steps.length;i++) {
             Map<String,Object> step=map(steps[i]);keys(step,"notes","frequencies","rest","gate","duration","length","overrides","bus","effectSend","priority");
@@ -128,6 +129,16 @@ final class SynthStudioContract {
             sweepProbe.put("frequency",440);sweepProbe.put("duration",SynthContract.MAX_DURATION_MS);
             if(!sweepProbe.containsKey("fmDepthEnd")&&(!sweepProbe.containsKey("fmDepth")||((Number)sweepProbe.get("fmDepth")).doubleValue()==0))sweepProbe.remove("fmRatio");
             if(!SynthContract.validateTone(sweepProbe,maxHz).accepted)throw new IllegalArgumentException("voice sweep");
+            for(int n=0;n<notes.length;n++) {
+                double hz=frequencies?((Number)notes[n]).doubleValue():tuning*Math.pow(2,(((Number)notes[n]).doubleValue()-69+detune/100)/12);
+                if(!SynthContract.validateVariation(voice,hz,number(voice,"frequencyEnd",0,0,maxHz),maxHz).accepted)throw new IllegalArgumentException("variation");
+            }
+            double[] variation=SynthContract.variationPacket(voice);
+            if(step.containsKey("overrides")) {
+                Map<String,Object> overrides=map(step.get("overrides"));
+                if(overrides.containsKey("variation")&&map(overrides.get("variation")).containsKey("seed"))variation[2]=3;
+            }
+            System.arraycopy(variation,0,packet,offset+184,20);
             packet[offset+168]=bus(voice.getOrDefault("bus","effects"));
             packet[offset+169]=number(voice,"effectSend",-1,0,1);
             packet[offset+170]=number(voice,"priority",0,0,3);

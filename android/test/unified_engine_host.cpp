@@ -5,8 +5,8 @@
 #undef main
 
 static std::vector<double> packet(bool ms=false,double length=0,int count=1) {
- std::vector<double> p(9+184*count);p[0]=count;p[1]=120;p[5]=440;p[7]=ms;p[8]=ms?100:.25;
- for(int i=0;i<count;i++) {auto q=p.data()+9+i*184;q[0]=1;q[2]=.8;q[3]=60;q[35]=.1;q[42]=.5;q[43]=1000;q[44]=.7071;q[45]=1;q[49]=1;q[53]=10;q[135]=length;q[168]=1;q[169]=-1;}
+ std::vector<double> p(11+204*count);p[0]=count;p[1]=120;p[5]=440;p[7]=ms;p[8]=ms?100:.25;
+ for(int i=0;i<count;i++) {auto q=p.data()+11+i*204;q[0]=1;q[2]=.8;q[3]=60;q[35]=.1;q[42]=.5;q[43]=1000;q[44]=.7071;q[45]=1;q[49]=1;q[53]=10;q[135]=length;q[168]=1;q[169]=-1;}
  return p;
 }
 static void render(Engine &e,int frames){std::vector<float> out(512);while(frames){int n=std::min(frames,256);e.onAudioReady(nullptr,out.data(),n);frames-=n;}}

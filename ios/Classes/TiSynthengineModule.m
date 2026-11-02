@@ -175,6 +175,9 @@ typedef struct {
 // ---------------------------------------------------------------------------
 
 typedef struct {
+  SynthVariation variation;
+  uint32_t variationOrdinal;
+  BOOL variationPrepared;
   int sequenceSlot,priority,bus,sequenceTimeUnit;double effectSend;BOOL hasSendUpdate;uint32_t sequenceId;
   SynthSpatialPrepared preparedSpatial;BOOL hasSpatialUpdate;
   uint64_t voiceGeneration;
@@ -559,6 +562,18 @@ static SynthModulationConfig StudioModulationFromValues(const double *v) {
  SynthModulationConfig m=synth_modulation_default_config();
  for(int i=0;i<2;i++){const double *p=v+i*6;m.lfo[i].enabled=(int)p[0];m.lfo[i].waveform=(int)p[1];m.lfo[i].target=(int)p[2];m.lfo[i].rateHz=p[3];m.lfo[i].depth=p[4];m.lfo[i].syncBeats=p[5];}return m;
 }
+static void ApplyAttackVariation(SynthCommand *c,uint32_t seed,uint64_t attack,uint32_t ordinal) {
+ const SynthVariation *v=&c->variation;if(!synth_variation_active(v))return;
+ c->volume=synth_variation_value(v,0,c->volume,seed,attack,ordinal);
+ c->filterHz=synth_variation_value(v,1,c->filterHz,seed,attack,ordinal);
+ c->filterQ=synth_variation_value(v,2,c->filterQ,seed,attack,ordinal);
+ c->fmDepth=synth_variation_value(v,3,c->fmDepth,seed,attack,ordinal);
+ c->noiseRate=synth_variation_value(v,4,c->noiseRate,seed,attack,ordinal);
+ c->lowPassHz=synth_variation_value(v,5,c->lowPassHz,seed,attack,ordinal);
+ c->pulseWidth=synth_variation_value(v,6,c->pulseWidth,seed,attack,ordinal);
+ double ratio=pow(2,synth_variation_value(v,7,0,seed,attack,ordinal)/1200);
+ c->frequency*=ratio;if(c->frequencyEnd>=1)c->frequencyEnd*=ratio;
+}
 static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rate) {
  SynthCommand c;memset(&c,0,sizeof(c));c.type=SYNTH_CMD_HELD_ON;c.volume=v->volume;c.pan=c.panEnd=v->pan;
  c.attackSamples=MsToSamples(v->attack,rate);c.decaySamples=MsToSamples(v->decay,rate);c.releaseSamples=MsToSamples(v->release,rate);c.sustain=v->sustain;
@@ -570,6 +585,8 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
 }
 
 @interface TiSynthengineModule () {
+  uint32_t variationSeed;
+  uint64_t variationAttack,batchVariationAttack;
   SynthTransport *sequence;
   NSMutableDictionary *sequenceOptions;
   SynthEffects effects;
@@ -636,6 +653,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
 - (void)startup
 {
   [super startup];
+  variationSeed=(uint32_t)mach_absolute_time();variationAttack=0;
   synth_stats_init(&stats);
   mach_timebase_info(&statsTimebase);
   warningKeys = [[NSMutableSet alloc] init];voiceGenerations=[NSMutableDictionary dictionary];voicePositions=[NSMutableDictionary dictionary];voiceSpatialModes=[NSMutableDictionary dictionary];
@@ -967,8 +985,20 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   return slot;
 }
 
-- (void)startVoiceFromCommand:(const SynthCommand *)cmd
+- (void)startVoiceFromCommand:(const SynthCommand *)input
 {
+  int slot=[self findVoiceSlotForCommand:input];
+  if(slot<0){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);return;}
+  SynthCommand sampled=*input;
+  if(synth_variation_active(&sampled.variation)&&!sampled.variationPrepared) {
+    uint64_t attack=0;
+    if(!sampled.variation.seeded) {
+      if(sampled.eventVoiceCount>1){if(!sampled.variationOrdinal)batchVariationAttack=variationAttack++;attack=batchVariationAttack;}
+      else attack=variationAttack++;
+    }
+    ApplyAttackVariation(&sampled,sampled.variation.seeded?sampled.variation.seed:variationSeed,attack,sampled.variationOrdinal);
+  }
+  const SynthCommand *cmd=&sampled;
   // Capture before slot reuse; only public, stable held-key release tails donate.
   BOOL inherit=NO; uint64_t donorOrder=0;
   double inheritedPhase=0,inheritedFM=0,inheritedLFO=0,inheritedFilterState=0;
@@ -992,8 +1022,6 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
       }
     }
   }
-  int slot    = [self findVoiceSlotForCommand:cmd];
-  if(slot<0){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);return;}
   SynthVoice *v = &voices[slot];
   BOOL replacing=v->isActive;
   synth_stats_voice_start(&stats, v->isActive, v->spatial, cmd->spatial);
@@ -1826,11 +1854,14 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   const SynthSequenceConfig *config=&t->banks[event.bank];const SynthSequenceVoice *settings=&config->steps[event.stepIndex].voice;
   if(![self canAdmitCount:event.noteCount priority:settings->priority]){__atomic_fetch_add(&priorityDrops,1,__ATOMIC_RELAXED);continue;}
   batchOrder=voiceOrder;batchRemaining=event.noteCount;
+  uint64_t attack=synth_variation_active(&settings->variation)?t->variationAttack++:0;
+  uint32_t seed=settings->variation.seeded?settings->variation.seed:synth_variation_word(variationSeed,event.sequenceId,0,0);
   for(int n=0;n<event.noteCount;n++) {
    SynthCommand cmd=StudioSequenceCommand(settings,engineSampleRate);
    if(sequenceVoiceId==INT32_MIN)sequenceVoiceId=0;cmd.voiceId=--sequenceVoiceId;
    cmd.frequency=event.frequencies[n]>0?event.frequencies[n]:synth_sequence_frequency(config,event.notes[n]);cmd.eventVoiceCount=event.noteCount;
    cmd.sequenceId=event.sequenceId;cmd.sequenceTimeUnit=config->timeUnit;cmd.sequenceSlot=slot;cmd.sequenceGeneration=event.generation;cmd.sequenceOffBeat=(config->timeUnit==SYNTH_SEQUENCE_MS?sequence->milliseconds:sequence->beat)+event.length;cmd.sequenceStep=event.stepIndex;cmd.sequenceMidi=event.notes[n];
+   cmd.variation=settings->variation;ApplyAttackVariation(&cmd,seed,attack,(uint32_t)n);cmd.variationPrepared=YES;
    [self startVoiceFromCommand:&cmd];batchRemaining--;
   }
  }
@@ -1911,6 +1942,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
   memset(&cmd, 0, sizeof(cmd));
   cmd.type = voiceId ? SYNTH_CMD_HELD_ON : CMD_NOTE_ON;
   cmd.voiceId=voiceId;
+  [TiSynthengineContract prepareVariation:options config:&cmd.variation];
   cmd.bus=(int)[@[@"music",@"effects",@"ui",@"ambience"] indexOfObject:options[@"bus"]?:@"effects"];cmd.effectSend=options[@"effectSend"]?[options[@"effectSend"] doubleValue]:-1;cmd.priority=[options[@"priority"] intValue];
   if(options[@"modulations"]) {
     double mods[12];[TiSynthengineContract prepareModulations:options[@"modulations"] values:mods waveType:-1 filterType:-1];
@@ -2147,6 +2179,7 @@ static SynthCommand StudioSequenceCommand(const SynthSequenceVoice *v,double rat
     }
     ApplyExpressiveParams(&cmd, &expressive, engineSampleRate);
 
+    [TiSynthengineContract prepareVariation:options config:&cmd.variation];cmd.variationOrdinal=(uint32_t)i;
     cmd.sequenceStep=(i==0)?1:0;chordCommands[i] = cmd;
   }
 

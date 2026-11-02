@@ -339,6 +339,9 @@ static BOOL FrequencyInRange(double frequency, double maxFrequency)
 
 // Rules that span several keys, evaluated on the effective values of one
 // sounding event (a pattern step already merged over its pattern root).
+static BOOL VariationEnablesFm(NSDictionary *options) {
+ SynthVariation v;return ![TiSynthengineContract prepareVariation:options config:&v]&&v.amount>0&&(v.mask&8)&&v.high[3]>0;
+}
 static NSDictionary *ValidateExpressiveRules(NSDictionary *eff, NSInteger durationMs)
 {
   NSInteger decay = IntegerValue(eff, @"decay", ContractDefaultDecay);
@@ -360,7 +363,7 @@ static NSDictionary *ValidateExpressiveRules(NSDictionary *eff, NSInteger durati
   }
 
   double depth = NumberValue(eff, @"fmDepth", 0.0);
-  BOOL fmActive = depth > 0.0 || HasKey(eff, @"fmDepthEnd");
+  BOOL fmActive = depth > 0.0 || HasKey(eff, @"fmDepthEnd") || VariationEnablesFm(eff);
   if (fmActive && IntegerValue(eff, @"waveType", 0) != 0) {
     NSString *key = depth > 0.0 ? @"fmDepth" : @"fmDepthEnd";
     return Failure(key, @"fm_requires_sine", [eff objectForKey:key]);
@@ -386,7 +389,44 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
   return inRange ? nil : Failure(@"detune", @"out_of_range", [eff objectForKey:@"detune"]);
 }
 
+static NSDictionary *ValidateVariation(NSDictionary *options,double frequency,double end,double ceiling)
+{
+ if(!HasKey(options,@"variation"))return nil;
+ SynthVariation v;
+ NSDictionary *f=[TiSynthengineContract prepareVariation:options config:&v];if(f)return f;
+ int wave=(int)IntegerValue(options,@"waveType",0);
+ int filter=options[@"filterType"]?(int)FilterTypeIndex(options[@"filterType"]):0;
+ return synth_variation_valid(&v,wave,filter,NumberValue(options,@"noiseRate",0),NumberValue(options,@"lowPassHz",0),frequency,end,ceiling)?nil:Failure(@"variation",@"invalid_variation",options[@"variation"]);
+}
+
 @implementation TiSynthengineContract
+
++ (NSDictionary *)prepareVariation:(NSDictionary *)options config:(SynthVariation *)out
+{
+ memset(out,0,sizeof(*out));if(!HasKey(options,@"variation"))return nil;
+ id raw=options[@"variation"];
+ if(![raw isKindOfClass:[NSDictionary class]])return Failure(@"variation",@"invalid_variation",raw);
+ NSDictionary *v=raw;
+ NSDictionary *f=RejectUnknownOptions(v,@[@"amount",@"seed",@"ranges"]);if(f)return f;
+ f=OptionalDouble(v,@"amount",0,1);if(f)return f;
+ out->amount=NumberValue(v,@"amount",1);
+ if(HasKey(v,@"seed")) {
+  double seed;if(!FiniteNumber(v[@"seed"],&seed)||seed!=rint(seed)||seed<0||seed>4294967295.0)return Failure(@"variation",@"invalid_variation",raw);
+  out->seeded=1;out->seed=(uint32_t)seed;
+ }
+ if(HasKey(v,@"ranges")) {
+  id ranges=v[@"ranges"];if(![ranges isKindOfClass:[NSDictionary class]])return Failure(@"variation",@"invalid_variation",raw);
+  NSArray *names=@[@"volume",@"filterHz",@"filterQ",@"fmDepth",@"noiseRate",@"lowPassHz",@"pulseWidth",@"pitchCents"];
+  f=RejectUnknownOptions(ranges,names);if(f)return f;
+  for(unsigned i=0;i<8;i++)if(HasKey(ranges,names[i])) {
+   id a=ranges[names[i]];
+   if(![a isKindOfClass:[NSArray class]]||[a count]!=2||!FiniteNumber(a[0],&out->low[i])||!FiniteNumber(a[1],&out->high[i])||out->low[i]>out->high[i])return Failure(@"variation",@"invalid_variation",raw);
+   out->mask|=1u<<i;
+  }
+ }
+ return nil;
+}
+
 
 + (NSDictionary *)validateStart:(NSDictionary *)options
 {
@@ -430,7 +470,7 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
 {
   NSDictionary *failure=RejectUnknownOptions(options,@[@"voiceId", @"frequency", @"note", @"attack", @"decay", @"sustain", @"release", @"volume",
       @"waveType", @"pan", @"lfoFreq", @"lfoDepth", @"noiseRate", @"lowPassHz", @"pulseWidth", @"waveTable", @"bitDepth",
-      @"filterType", @"filterHz", @"filterQ", @"fmRatio", @"fmDepth", @"detune", @"spatialX", @"spatialY", @"modulations", @"bus", @"effectSend", @"priority"]);
+      @"filterType", @"filterHz", @"filterQ", @"fmRatio", @"fmDepth", @"detune", @"spatialX", @"spatialY", @"modulations", @"bus", @"effectSend", @"priority", @"variation"]);
   if(failure) return failure;
   if(!HasKey(options,@"voiceId")) return Failure(@"voiceId",@"missing_required",nil);
   failure=ValidateVoiceId(options); if(failure)return failure;
@@ -479,7 +519,7 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
       @"waveType", @"pan", @"panEnd", @"frequencyEnd", @"lfoFreq", @"lfoDepth",
       @"noiseRate", @"noiseRateEnd", @"lowPassHz", @"pulseWidth", @"pulseWidthEnd",
       @"waveTable", @"bitDepth", @"decay", @"sustain", @"filterType", @"filterHz",
-      @"filterHzEnd", @"filterQ", @"fmRatio", @"fmDepth", @"fmDepthEnd", @"detune", @"spatialX", @"spatialY", @"bus", @"effectSend", @"priority"]);
+      @"filterHzEnd", @"filterQ", @"fmRatio", @"fmDepth", @"fmDepthEnd", @"detune", @"spatialX", @"spatialY", @"bus", @"effectSend", @"priority", @"variation"]);
   if (failure) return failure;
   BOOL hasFrequency = HasKey(options, @"frequency");
   BOOL hasNote = HasKey(options, @"note");
@@ -497,7 +537,9 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
   if (failure) return failure;
   double toneFrequency = hasNote ? StrictNoteFrequency([options objectForKey:@"note"])
                        : NumberValue(options, @"frequency", ContractDefaultFrequency);
-  return ValidateDetuneRange(options, toneFrequency, maxFrequency);
+  failure=ValidateDetuneRange(options,toneFrequency,maxFrequency);if(failure)return failure;
+  double ratio=pow(2,NumberValue(options,@"detune",0)/1200);
+  return ValidateVariation(options,toneFrequency*ratio,NumberValue(options,@"frequencyEnd",0)*ratio,maxFrequency);
 }
 
 + (NSDictionary *)validateChord:(NSDictionary *)options maxFrequency:(double)maxFrequency
@@ -506,7 +548,7 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
     @[@"frequencies", @"notes", @"duration", @"attack", @"release", @"volume",
       @"waveType", @"panSpread", @"pans", @"noiseRate", @"lowPassHz",
       @"pulseWidth", @"waveTable", @"bitDepth", @"decay", @"sustain", @"filterType",
-      @"filterHz", @"filterQ", @"fmRatio", @"fmDepth", @"detunes", @"spatialX", @"spatialY", @"bus", @"effectSend", @"priority"]);
+      @"filterHz", @"filterQ", @"fmRatio", @"fmDepth", @"detunes", @"spatialX", @"spatialY", @"bus", @"effectSend", @"priority", @"variation"]);
   if (failure) return failure;
   BOOL hasFrequencies = HasKey(options, @"frequencies");
   BOOL hasNotes = HasKey(options, @"notes");
@@ -566,6 +608,11 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
       return Failure(@"detunes", @"out_of_range", [detunes objectAtIndex:i]);
     }
   }
+  for(NSUInteger i=0;i<pitches.count;i++) {
+    double base=hasFrequencies?[pitches[i] doubleValue]:StrictNoteFrequency(pitches[i]);
+    double ratio=pow(2,(i<detunes.count?[detunes[i] doubleValue]:0)/1200);
+    failure=ValidateVariation(options,base*ratio,0,maxFrequency);if(failure)return failure;
+  }
   return nil;
 }
 
@@ -573,6 +620,8 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
 {
   return @{
     @"apiVersion": @"1.0.0",
+    @"capabilities": @{@"variation":@YES},
+    @"variationSchemaVersion":@1,
     @"defaults": @{
       @"maxVoices": @(ContractDefaultMaxVoices), @"maxSequences": @1, @"timeUnit": @"beats", @"gate": @0.8, @"loop": @NO, @"bus": @"effects", @"priority": @0,
       @"mixingProfile": ContractDefaultMixingProfile,
@@ -753,8 +802,10 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
   NSArray *steps=options[@"steps"];
   if(![steps isKindOfClass:[NSArray class]]||steps.count<1||steps.count>512)return Failure(@"steps",@"invalid_array",steps);
   c->stepCount=(int)steps.count;
-  NSArray *voiceKeys=@[@"attack",@"decay",@"sustain",@"release",@"volume",@"waveType",@"pan",@"lfoFreq",@"lfoDepth",@"noiseRate",@"lowPassHz",@"pulseWidth",@"waveTable",@"bitDepth",@"filterType",@"filterHz",@"filterQ",@"fmRatio",@"fmDepth",@"spatialX",@"spatialY",@"modulations",@"bus",@"effectSend",@"priority",@"frequencyEnd",@"noiseRateEnd",@"panEnd",@"pulseWidthEnd",@"filterHzEnd",@"fmDepthEnd"];
+  NSArray *voiceKeys=@[@"attack",@"decay",@"sustain",@"release",@"volume",@"waveType",@"pan",@"lfoFreq",@"lfoDepth",@"noiseRate",@"lowPassHz",@"pulseWidth",@"waveTable",@"bitDepth",@"filterType",@"filterHz",@"filterQ",@"fmRatio",@"fmDepth",@"spatialX",@"spatialY",@"modulations",@"bus",@"effectSend",@"priority",@"frequencyEnd",@"noiseRateEnd",@"panEnd",@"pulseWidthEnd",@"filterHzEnd",@"fmDepthEnd",@"variation"];
   f=RejectUnknownOptions(voice,voiceKeys);if(f)return f;
+  SynthVariation rootVariation;f=[self prepareVariation:voice config:&rootVariation];if(f)return f;
+  c->variationRootSeeded=rootVariation.seeded;c->variationRootSeed=rootVariation.seed;
   for(int i=0;i<c->stepCount;i++) {
     NSDictionary *step=steps[i];if(![step isKindOfClass:[NSDictionary class]])return Failure(@"steps",@"not_object",step);
     f=RejectUnknownOptions(step,@[@"notes",@"frequencies",@"rest",@"gate",@"duration",@"length",@"overrides",@"bus",@"effectSend",@"priority"]);if(f)return f;
@@ -781,7 +832,13 @@ static NSDictionary *ValidateDetuneRange(NSDictionary *eff, double frequency, do
     NSMutableDictionary *expressive=[v mutableCopy];
     if([v[@"fmDepth"] doubleValue]==0&&!v[@"fmDepthEnd"])for(id mod in v[@"modulations"])if([mod[@"target"] isEqual:@"fmDepth"])[expressive removeObjectForKey:@"fmRatio"];
     f=ValidateExpressiveRules(expressive,60000);if(f)return f;
+    for(int n=0;n<dst->noteCount;n++) {
+      double hz=frequencies?dst->frequencies[n]:synth_sequence_frequency(c,dst->notes[n]);
+      f=ValidateVariation(v,hz,NumberValue(v,@"frequencyEnd",0),maxFrequency);if(f)return f;
+    }
     SynthSequenceVoice *out=&dst->voice;
+    f=[self prepareVariation:v config:&out->variation];if(f)return f;
+    if([overrides[@"variation"] isKindOfClass:[NSDictionary class]]&&HasKey(overrides[@"variation"],@"seed"))out->variation.seeded|=SYNTH_VAR_STEP_SEED;
 #define FIELD(field,key,def) out->field=v[@key]?[v[@key] doubleValue]:(def)
     FIELD(volume,"volume",1);FIELD(pan,"pan",0);FIELD(lfoFreq,"lfoFreq",0);FIELD(lfoDepth,"lfoDepth",0);FIELD(noiseRate,"noiseRate",0);FIELD(lowPassHz,"lowPassHz",0);FIELD(pulseWidth,"pulseWidth",.5);
     FIELD(filterHz,"filterHz",1000);FIELD(filterQ,"filterQ",.7071);FIELD(fmRatio,"fmRatio",1);FIELD(fmDepth,"fmDepth",0);FIELD(sustain,"sustain",1);

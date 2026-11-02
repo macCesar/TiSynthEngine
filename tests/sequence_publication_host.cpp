@@ -15,9 +15,9 @@ static double seconds(clockid_t clock){timespec t{};assert(!clock_gettime(clock,
 static uint64_t hashBytes(uint64_t h,const void *data,size_t size){auto p=(const unsigned char *)data;while(size--){h^=*p++;h*=1099511628211ULL;}return h;}
 int main(int argc,char **argv) {
  int steps=argc>1?atoi(argv[1]):1,loops=argc>2?atoi(argv[2]):100;assert(steps>=1&&steps<=512&&loops>0);
- packet.assign(9+184*steps,0);packet[0]=steps;packet[1]=120;packet[3]=1;packet[4]=1;packet[5]=440;packet[8]=.25;
+ packet.assign(11+204*steps,0);packet[0]=steps;packet[1]=120;packet[3]=1;packet[4]=1;packet[5]=440;packet[8]=.25;
  for(int i=0;i<steps;i++) {
-  auto p=packet.data()+9+i*184;p[0]=32;p[2]=.8;
+  auto p=packet.data()+11+i*204;p[0]=32;p[2]=.8;
   for(int n=0;n<32;n++)p[3+n]=36+(i+n)%60;
   p[35]=.03;p[42]=.5;p[43]=1000;p[44]=.7071;p[45]=1;p[49]=1;p[50]=1;p[51]=1;p[53]=10;p[168]=1;p[169]=-1;
  }

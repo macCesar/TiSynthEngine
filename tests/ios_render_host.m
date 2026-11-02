@@ -1,6 +1,6 @@
 // Included after the production ObjC helpers, ivars, methods and render body
 // by build_ios_render_host.py. No replacement DSP implementation lives here.
-static BOOL traceBytes;
+static BOOL traceBytes,tracePcmOnly;
 static uint64_t hashBytes(uint64_t h,const void *data,size_t size) {
  if(traceBytes){assert(fwrite(data,1,size,stdout)==size);return h;}
  const unsigned char *p=data;while(size--){h^=*p++;h*=1099511628211ULL;}return h;
@@ -50,6 +50,7 @@ static SynthCommand tone(RenderRig *r,int index,int wave,BOOL spatial,BOOL held)
 // Semantic snapshots omit pointers, padding after the last original voice field
 // and optional diagnostic wall time. All original voice/filter/FIR fields remain.
 static uint64_t stateHash(RenderRig *r) {
+ BOOL tracing=traceBytes;if(tracePcmOnly)traceBytes=NO;
  uint64_t h=1469598103934665603ULL;
  for(int i=0;i<32;i++) {
   h=hashBytes(h,&r->voices[i],offsetof(SynthVoice,fmDepthDelta)+sizeof(double));
@@ -77,7 +78,7 @@ static uint64_t stateHash(RenderRig *r) {
  }
  h=hashBytes(h,r->sequence,sizeof(*r->sequence));
  HASH(h,r->stats.active);HASH(h,r->stats.tails);HASH(h,r->stats.spatial);HASH(h,r->stats.steals);HASH(h,r->stats.peakActive);
- return h;
+ traceBytes=tracing;return h;
 }
 static void render(RenderRig *r,int frames,float *output,int layout) {
  struct {AudioBufferList list;AudioBuffer extra;} buffers={0};
@@ -129,17 +130,17 @@ static void fixtures(void) {
    if(block==120){SynthCommand c={0};c.type=CMD_STOP_ALL;assert(![r enqueueCommand:c]);}
    int count=sizes[block%(sizeof(sizes)/sizeof(sizes[0]))],layout=block%3;memset(output,0,sizeof(output));render(r,count,output,layout);
    pcm=hashBytes(pcm,output,(layout==2?count:count*2)*sizeof(float));
-   if(block%15==0||block==179){uint64_t state=stateHash(r);HASH(states,state);}
+   if(block%15==0||block==179){uint64_t state=stateHash(r);if(!tracePcmOnly)HASH(states,state);}
   }
   if(fx) {
    // Reach the quiet FX state after panic, then enable processing again. A
    // bypass may neither freeze hidden ramps nor leave stale history behind.
    for(int frame=0;frame<(int)(r->engineSampleRate*.25);frame+=256){render(r,256,output,0);pcm=hashBytes(pcm,output,256*2*sizeof(float));}
-   uint64_t state=stateHash(r);HASH(states,state);
+   uint64_t state=stateHash(r);if(!tracePcmOnly)HASH(states,state);
    SynthCommand processing={0};processing.type=7;processing.processing=synth_effects_default_config();processing.processing.inputGain=1.2;processing.processing.chorus.enabled=1;
    assert(![r enqueueCommand:processing]);SynthCommand c=tone(r,0,1,spatial,YES);c.effectSend=.27;assert(![r enqueueCommand:c]);
    for(int block=0;block<6;block++){render(r,256,output,0);pcm=hashBytes(pcm,output,256*2*sizeof(float));}
-   state=stateHash(r);HASH(states,state);
+   state=stateHash(r);if(!tracePcmOnly)HASH(states,state);
   }
   printf("rate=%d kind=%d pcm=%016llx state=%016llx\n",rates[rate],kind,(unsigned long long)pcm,(unsigned long long)states);
   destroyRig(r);
@@ -290,6 +291,7 @@ int main(int argc,char **argv) {@autoreleasepool {
  if(argc>2&&!strcmp(argv[1],"--capture"))capturePipeline(argv[2]);
  else if(argc>1&&!strcmp(argv[1],"--output"))outputRegression();
  else if(argc>1&&!strcmp(argv[1],"--trace")){traceBytes=YES;fixtures();}
+ else if(argc>1&&!strcmp(argv[1],"--pcm-trace")){traceBytes=tracePcmOnly=YES;fixtures();}
  else if(argc>1&&!strcmp(argv[1],"--metadata"))metadataRegression();
  else if(argc>1&&atoi(argv[1])==-1)pruneBenchmark(argc>2?atoi(argv[2]):100000);
  else if(argc>1&&atoi(argv[1])==-2)producerBenchmark(argc>2?atoi(argv[2]):1,argc>3?atoi(argv[3]):100);
