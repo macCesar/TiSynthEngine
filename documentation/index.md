@@ -6,6 +6,8 @@ Start with the [README](../README.md) if you have not installed the module yet. 
 
 ## Guides
 
+- [Instruments, sound effects and complete sequences](instruments-and-effects.md): choose the playback contract, preserve full recipes, compose demos and budget overlapping voices.
+
 - [Guide](guide.md): installation, startup, cleanup and day-to-day use.
 - [Binaural app integration](guide.md#integrate-binaural-in-a-2d-app): per-effect coordinates, switches, amplitude sliders and stereo fallback.
 - [Sustained voice ownership](guide.md#hold-and-edit-a-voice): identified notes, live edits and release cleanup.

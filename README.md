@@ -15,6 +15,7 @@ It is a synthesizer, not a sample player. It does not decode `.wav` or `.mp3` fi
 | You want to... | Read this |
 | --- | --- |
 | Install the module and hear a first note | [Install](#install) and [quick start](#quick-start) |
+| Understand playable instruments versus complete sound effects | [Instruments, effects and sequences](documentation/instruments-and-effects.md) |
 | Add game sounds or interface feedback | [Sound design and recipes](documentation/sound-design.md) |
 | Build playable keys or a sustained game motor | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
 | Schedule music, chords, swing or arpeggios | [Native musical transport](documentation/guide.md#choose-the-musical-transport) |
@@ -144,6 +145,8 @@ The module exposes nineteen methods and one event, `sequenceend`.
 Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.
 
 ## Sustained voices, musical transport and effects
+
+A held key plays a timbre at the key's pitch until the app releases it. A complete effect also includes its original frequencies, timed sweeps, layers and attack pattern. Reusing only its base waveform does not reproduce that recipe. See [instruments, sound effects and complete sequences](documentation/instruments-and-effects.md) for separate workflows, examples and capacity/gain guidance.
 
 | Feature | What you can build | Start here |
 | --- | --- | --- |

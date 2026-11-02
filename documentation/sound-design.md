@@ -2,6 +2,8 @@
 
 TiSynthEngine generates sound with oscillators, without recorded samples. Pitch, waveform, envelope, movement and level define each sound, from interface feedback and musical cues to alarms, retro effects and simple percussion.
 
+For the distinction between a playable timbre and a complete effect recipe, start with [instruments, sound effects and complete sequences](instruments-and-effects.md). It covers held keys, independent shots, native sequences, layered effects, demonstrations and shared output headroom.
+
 The examples assume the engine is running and use these constants:
 
 ```javascript
