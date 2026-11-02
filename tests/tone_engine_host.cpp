@@ -3,6 +3,17 @@
 #include "engine_render_host.cpp"
 #undef main
 #include <cassert>
+#include <limits>
+
+static void assertVariationVolume(double actual, double expected) {
+ // Constant-folded expectations and runtime variation can contract differently.
+ const double tolerance = 4 * std::numeric_limits<double>::epsilon() *
+     std::max(std::abs(actual), std::abs(expected));
+ const bool matches = std::isfinite(actual) && std::isfinite(expected) &&
+     std::abs(actual - expected) <= tolerance;
+ if (!matches) std::fprintf(stderr, "variation volume: actual=%a expected=%a tolerance=%g\n", actual, expected, tolerance);
+ assert(matches);
+}
 int main() {
  Rig r(32);auto c=note(r,440,120,5,20,.1,0);
  assert(r.e().publishTone(1,c,10,true));r.render(1);
@@ -55,13 +66,13 @@ int main() {
  // Revisions preserve stream position; explicit seed changes restart it.
  {Rig stream(32);auto x=c;x.variation.amount=1;x.variation.mask=1;x.variation.seeded=1;x.variation.seed=11;
   x.variation.low[0]=.05;x.variation.high[0]=.2;assert(stream.e().publishTone(1,x,2,true));stream.render(1);
-  assert(stream.e().voices_[0].volume==synth_variation_value(&x.variation,0,x.volume,11,0,0)*eventGain(1,0,1));
+  assertVariationVolume(stream.e().voices_[0].volume,synth_variation_value(&x.variation,0,x.volume,11,0,0)*eventGain(1,0,1));
   x.volume=.15;assert(stream.e().publishTone(1,x,2,false));stream.render(95);assert(stream.e().voiceOrder_==1);
   stream.render(1);assert(stream.e().tones_.slots[0].variationAttack==2);
-  assert(stream.e().voices_[1].volume==synth_variation_value(&x.variation,0,x.volume,11,1,0)*eventGain(1,0,1));
+  assertVariationVolume(stream.e().voices_[1].volume,synth_variation_value(&x.variation,0,x.volume,11,1,0)*eventGain(1,0,1));
   x.variation.seed=12;assert(stream.e().publishTone(1,x,2,false));stream.render(96);
   assert(stream.e().tones_.slots[0].variationAttack==1);
-  assert(stream.e().voices_[2].volume==synth_variation_value(&x.variation,0,x.volume,12,0,0)*eventGain(1,0,1));
+  assertVariationVolume(stream.e().voices_[2].volume,synth_variation_value(&x.variation,0,x.volume,12,0,0)*eventGain(1,0,1));
  }
  // Seeded streams advance independently; rejected priority admissions consume none.
  Rig v(1);auto protectedNote=c;protectedNote.priority=3;assert(!v.e().enqueue(protectedNote));v.render(1);
