@@ -6,7 +6,7 @@ Public API version: `1.1.0`
 
 Android and iOS expose the same public methods, one event and waveform values. Option objects are strict: an unknown key is rejected with `unsupported_option`. Reported metadata and rejection diagnostics have platform differences; this reference does not promise sample-identical rendering between Android and iOS.
 
-## Native attack variation (local package 1.1.0)
+## Native attack variation (package 1.1.0)
 
 The optional `variation` dictionary is accepted by `playTone`, `repeatTone`, `playChord`, `noteOn`, sequence `voice` and step `overrides`. Version 1.1.0 reports public API `1.1.0`. Both platforms advertise `capabilities.variation: true` and `variationSchemaVersion: 1`; consumers must require both before sending the dictionary. The published 1.0.2 packages do not support it. See [native variation](native-variation.md) for fields, source restrictions, seeds and examples. Native `amount` is linear; Studio divides its displayed percentage by 100. `updateNote` rejects the dictionary. An override replaces the whole inherited dictionary, and an amount-zero dictionary still validates its ranges.
 
@@ -294,6 +294,8 @@ The controls from `decay` to `detune` are described in [Expressive controls](#ex
 ## `repeatTone(options)`
 
 Returns a positive `toneId`, or 0 on rejection. Requires integer `intervalMs` from 1 to 60,000 ms; missing or invalid intervals return 0. All remaining options use the same finite-tone contract as `playTone`, with the same admission, envelope, sweeps, gain and routes. Repetition uses neither sustained nor sequence voices.
+
+Always supply exact integer milliseconds. The current Apple validator tolerates extremely near-integer values: for example, `1.0000000001` is accepted and converted to `1`, while Android rejects it. This is a native validation discrepancy, not an additional supported interval format; do not rely on that tolerance.
 
 | Key               | Type     | Rule                                              |
 | ----------------- | -------- | ------------------------------------------------- |

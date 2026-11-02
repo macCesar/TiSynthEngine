@@ -532,7 +532,7 @@ synth.shutdown()
 
 `stopAll()` stops all native sequences, fades current voices and invalidates effect histories. `shutdown()` also releases the native stream. To stop only one sequence owner, use `stopSequence({ sequenceId })`.
 
-Follow the [interactive demo setup and test checklist](../example/README.md) to run [`example/app.js`](../example/app.js). It includes headphone positioning, session selection, pattern completion/replacement and all three statistics methods. For a service-level statistics recipe, see [read engine statistics](guide.md#read-engine-statistics).
+Follow the [interactive demo setup and test checklist](../example/README.md) to run [`example/app.js`](../example/app.js). It includes headphone positioning, session selection, pattern completion/replacement and the statistics methods `getStats`, `enableStats`, `disableStats` and `resetStats`. For a service-level statistics recipe, see [read engine statistics](guide.md#read-engine-statistics).
 
 ## Positioned headphone effect
 
