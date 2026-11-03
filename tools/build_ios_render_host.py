@@ -3,7 +3,8 @@
 
 Only the hardware/Titanium lifecycle is replaced. DSP helpers, voice methods,
 queue consumption and the render block body are copied verbatim from --source.
-The callback's mach clock is fixed for repeatable noise seeds and disabled stats;
+Noise seed state starts deterministically in the host; the callback's mach clock
+is fixed for disabled stats;
 external CLOCK_THREAD_CPUTIME_ID / MONOTONIC clocks measure its work instead.
 This is the Apple renderer on macOS, not physical iPad real-time acceptance.
 """
@@ -126,7 +127,7 @@ static uint64_t synth_host_seed_clock(void) { return 1; }
         "sharedSha256": {h.name: hashlib.sha256(h.read_bytes()).hexdigest() for h in sorted((source_root / "shared").glob("*.h"))},
         "command": command, "binarySha256": hashlib.sha256(args.output.read_bytes()).hexdigest(),
         "scope": "Actual Apple ObjC render body/helpers on macOS. No AVAudioEngine, session, Titanium bridge or device output.",
-        "deterministicNoiseSeedClock": True}, indent=2) + "\n")
+        "deterministicNoiseSeedState": True}, indent=2) + "\n")
 
 
 if __name__ == "__main__":

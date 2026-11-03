@@ -110,6 +110,8 @@ jobs:
           "$RUNNER_TEMP/apple-render" --metadata
           python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-variation" --driver tests/variation_render_ios.m
           "$RUNNER_TEMP/apple-variation"
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-noise" --driver tests/ios_noise_seed.m
+          "$RUNNER_TEMP/apple-noise"
           python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-tones" --driver tests/ios_tone_repetition.m
           "$RUNNER_TEMP/apple-tones"
           "$RUNNER_TEMP/apple-render"

@@ -10,6 +10,7 @@
 #import <os/lock.h>
 #import <stdatomic.h>
 #import <stdint.h>
+#import <stdlib.h>
 #include "../../shared/synth_core.h"
 #include "../../shared/synth_output.h"
 #include "../../shared/synth_held.h"
@@ -338,15 +339,21 @@ static double RenderWavetable(double phase, const double *table, int tableSize)
   return table[index];
 }
 
-// splitmix64-style noise: returns a value in [-1, 1]
-static double LcgNoise(uint64_t *state)
+// SplitMix64: render-thread-owned state, with no allocation or system calls.
+static uint64_t NextNoiseWord(uint64_t *state)
 {
   *state += 0x9e3779b97f4a7c15ULL;
   uint64_t z = *state;
   z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
   z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
   z ^= (z >> 31);
-  return (double)(int64_t)z / (double)0x7FFFFFFFFFFFFFFFLL;
+  return z;
+}
+
+// Noise samples retain the original SplitMix64 sequence for a given state.
+static double LcgNoise(uint64_t *state)
+{
+  return (double)(int64_t)NextNoiseWord(state) / (double)0x7FFFFFFFFFFFFFFFLL;
 }
 
 static BOOL ParseFiniteDoubleFromAny(id value, double *outValue)
@@ -619,6 +626,7 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
   SynthLiveIdentity identities[ABSOLUTE_MAX_VOICES];
   _Atomic(uint32_t) identityPriority[ABSOLUTE_MAX_VOICES];
   uint64_t voiceOrder,batchOrder;int batchRemaining;
+  uint64_t noiseSeedState; // Initialized before rendering; then audio-thread only.
   NSMutableDictionary *voiceGenerations,*voicePositions,*voiceSpatialModes;
   uint64_t nextVoiceGeneration;
   TailVoice     tails[ABSOLUTE_MAX_VOICES];
@@ -666,7 +674,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 - (void)startup
 {
   [super startup];
-  variationSeed=(uint32_t)mach_absolute_time();variationAttack=0;
+  variationSeed=arc4random();variationAttack=0;
+  arc4random_buf(&noiseSeedState, sizeof(noiseSeedState));
   synth_stats_init(&stats);
   mach_timebase_info(&statsTimebase);
   warningKeys = [[NSMutableSet alloc] init];voiceGenerations=[NSMutableDictionary dictionary];voicePositions=[NSMutableDictionary dictionary];voiceSpatialModes=[NSMutableDictionary dictionary];
@@ -1173,8 +1182,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
     synth_live_init(&v->live,values); v->fmActive=v->waveType==0;
   }
 
-  // Noise seed
-  v->noiseState = (uint64_t)(mach_absolute_time()) ^ ((uint64_t)(slot + 1) * 0x9e3779b97f4a7c15ULL);
+  // Derive each attack seed from preinitialized state without calling the OS.
+  v->noiseState = NextNoiseWord(&noiseSeedState) ^ ((uint64_t)(slot + 1) * 0x9e3779b97f4a7c15ULL);
   v->heldNoise = LcgNoise(&v->noiseState);
   if(inherit) {v->phase=inheritedPhase;v->fmModPhase=inheritedFM;v->lfoPhase=inheritedLFO;v->filterState=inheritedFilterState;v->svf=inheritedFilter;}
 }
