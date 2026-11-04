@@ -23,7 +23,7 @@ def method(name):
         end += 1
     return source[match.start():end]
 
-names = ['pruneVoiceMetadata', 'drainSequenceEvents', 'publishSequence',
+names = ['pruneVoiceMetadata', 'drainSequenceEvents', 'publishSequence', 'publishSoundSequence',
          'maxFrequencyHz', 'acceptValidation', 'warnOnceMethod',
          'scheduleSequencePoll', 'cancelSequencePoll']
 methods = [body for name in names if (body := method(name))]
