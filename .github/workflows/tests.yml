@@ -31,6 +31,8 @@ jobs:
           node tests/physical_bypass_regression.js
           node tests/documentation_regression.js
           node --test tests/example_app_regression.js
+          node --test tests/sound_api.test.js tests/sequence_owner_regression.js
+          node --expose-gc --test tests/sound_memory.test.js
 
       - name: Production Android output and start profiles
         run: |
@@ -75,6 +77,10 @@ jobs:
           c++ -std=c++17 -O2 -Wall -Wextra -pthread tests/stats_regression.cpp -o "$RUNNER_TEMP/stats"
           "$RUNNER_TEMP/stats"
           python3 tests/run_stats_java.py
+          python3 tests/run_sound_boundary_java.py
+          python3 tests/run_sound_memory_java.py
+          python3 tests/run_sound_revisions_java.py
+          python3 tests/run_sound_corpus.py tests/sound_api_corpus.jsonl
           python3 tests/run_studio_java.py
 
       - name: Java contracts and historical DSP model (not a production oracle)
@@ -114,7 +120,19 @@ jobs:
           "$RUNNER_TEMP/apple-noise"
           python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-tones" --driver tests/ios_tone_repetition.m
           "$RUNNER_TEMP/apple-tones"
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-sound" --driver tests/ios_sound_boundary.m
+          "$RUNNER_TEMP/apple-sound"
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-sound-corpus" --driver tests/ios_sound_corpus.m
+          "$RUNNER_TEMP/apple-sound-corpus" tests/sound_api_corpus.jsonl
           "$RUNNER_TEMP/apple-render"
+
+      - name: Sound identity lifetime, full revisions and producer/callback race
+        run: |
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-sound-memory" --driver tests/ios_sound_memory.m
+          "$RUNNER_TEMP/apple-sound-memory"
+          python3 tools/build_ios_render_host.py --output "$RUNNER_TEMP/apple-sound-revisions" --driver tests/ios_sound_revisions.m
+          "$RUNNER_TEMP/apple-sound-revisions"
+          python3 tests/run_sound_alias_race_ios.py --output "$RUNNER_TEMP/apple-sound-alias-race"
 
       - name: Apple spatial state regression
         run: |

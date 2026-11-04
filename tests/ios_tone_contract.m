@@ -16,7 +16,7 @@ int main(void) { @autoreleasepool {
  assert([TiSynthengineContract validateRepeatTone:base maxFrequency:20000]!=nil);
  NSMutableDictionary *single=[base mutableCopy];single[@"intervalMs"]=@120;assert([TiSynthengineContract validateTone:single maxFrequency:20000]!=nil);
  NSDictionary *d=[TiSynthengineContract defaultsWithMaxFrequency:20000];
- assert([d[@"apiVersion"] isEqual:@"1.1.0"]);
+ assert([d[@"version"] isEqual:@"2.0.0"]);
  assert([d[@"capabilities"][@"toneRepetition"] boolValue]);
  assert([d[@"limits"][@"maxToneRepetitions"][@"max"] intValue]==32);
  puts("Apple repetition contract: valid/invalid intervals, source separation and API limits PASS");

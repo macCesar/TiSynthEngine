@@ -63,7 +63,7 @@ public class StatsApiRegression {
   check(m.repeatTone(new KrollDict())==0);check(!m.playTone(new KrollDict(){{put("intervalMs",120);}}));
   check(!m.playTone(new KrollDict()));
   m.resetStats();
-  KrollDict contract=m.getDefaults();check(contract.get("apiVersion").equals("1.1.0"));
+  KrollDict contract=m.getDefaults();check(contract.get("version").equals("2.0.0"));
   check(Boolean.TRUE.equals(((KrollDict)contract.get("capabilities")).get("toneRepetition")));
   check(m.getStats().get("renderLoad")==null);
   check(!m.start(new KrollDict(){{put("maxVoices",100);}}));

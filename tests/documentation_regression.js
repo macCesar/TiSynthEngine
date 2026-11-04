@@ -16,6 +16,7 @@ const publicFiles = [
   'documentation/index.md',
   'documentation/guide.md',
   'documentation/api.md',
+  'documentation/sound-api.md',
   'documentation/native-variation.md',
   'documentation/native-variation-validation.md',
   'documentation/examples.md',
@@ -111,7 +112,7 @@ function checkUnwrappedProse(relativePath, source) {
 for (const relativePath of publicFiles) {
   const source = read(relativePath)
   for (const version of source.match(/(?<![\d.])\d+\.\d+\.\d+/g) || []) {
-    assert(version === '1.0.0' || version === '1.0.1' || version === '1.0.2' || version === '1.1.0' || version === '1.11.0' || /^13\.\d+\.\d+$/.test(version)
+    assert(['1.0.0', '1.0.1', '1.0.2', '1.1.0', '1.1.1', '2.0.0', '1.11.0'].includes(version) || /^13\.\d+\.\d+$/.test(version)
       || (relativePath === 'documentation/stats-performance.md' && ['21.0.0', '2100.3.34'].includes(version)),
       `${relativePath} mentions version ${version}; unexpected module/toolchain version`)
   }
@@ -240,6 +241,46 @@ assert.throws(() => sandbox.playPositionedTone(originalRecipe, 0, 0, 0, 800),
 // Execute native score recipes and submit the resulting payloads to both real
 // contract implementations. Timing expectations are hand-derived fixtures.
 const corpus = []
+// Execute the modern documentation through the actual shared compiler. Keep the
+// native score/default checks below intact; these examples also join that corpus.
+const modern = read('documentation/sound-api.md')
+const sharedApi = require('../assets/ti.synthengine')
+for (const [heading, constant] of [['Sound properties', 'SOUND_KEYS'], ['Playback properties', 'PLAY_KEYS']]) {
+  const table = modern.split('### ' + heading + '\n')[1]
+  assert(table, heading + ' is documented')
+  const declaration = read('assets/ti.synthengine.js').match(new RegExp('const ' + constant + " = '([^']+)'.split"))
+  assert(declaration, constant + ' has an authoritative allowlist')
+  assert.deepStrictEqual(documentedKeys(table.split('\n### ')[0]), declaration[1].split(' ').sort(), heading + ' matches shared API')
+}
+let modernExamples = 0
+for (const match of modern.matchAll(/```javascript\s*\n([\s\S]*?)```/g)) {
+  let serial = 0
+  const requests = []
+  const native = {
+    getDefaults: () => ({ version: '2.0.0', capabilities: {}, defaults: {}, limits: {},
+      waveTypes: { SINE: 0, SQUARE: 1, SAWTOOTH: 2, TRIANGLE: 3, NOISE: 4, WAVETABLE: 5 } }),
+    start: () => true, shutdown() {}, setVolume: () => true, setTempo: () => true,
+    _soundRuntime: () => ({ generation: 1, running: true }), _allocateSoundNote: () => ++serial,
+    _soundNoteToMidi: note => ({ C4: 60, E4: 64, G4: 67 })[note],
+    _validateSoundOptions(request) {
+      requests.push(JSON.parse(JSON.stringify(request)))
+      const api = { pattern: 'sequence', processing: 'masterProcessing', held: 'noteOn', heldUpdate: 'updateVoice' }[request.kind]
+      if (api) corpus.push({ api, options: JSON.parse(JSON.stringify(request.options)), accepted: true })
+      return null
+    },
+    _soundHeld: () => true, playTone: () => true, playChord: () => true,
+    repeatTone: () => ++serial, playSequence: () => ++serial,
+    updateTone: () => true, stopTone: () => true, updateSequence: () => true, stopSequence: () => true,
+    getSequenceState: () => ({ sequenceId: serial, playing: true, step: 0, beat: 0, position: 0, bpm: 120, revision: 1 }),
+    addEventListener() {}, removeEventListener() {}, setMasterProcessing: () => true,
+    enableStats: () => true, disableStats: () => true, getStats: () => ({ activeVoices: 0 })
+  }
+  Object.assign(native, sharedApi)
+  vm.runInNewContext(match[1], { synth: native, require: name => { assert.strictEqual(name, 'ti.synthengine'); return native }, Ti: { API: { info() {} } } },
+    { filename: 'documentation/sound-api.md#example-' + (++modernExamples) })
+  assert(requests.length > 0, 'object API example exercises the shared compiler')
+}
+assert.strictEqual(modernExamples, 6, 'all documented object API examples execute')
 function score(file, heading) {
   const section = read(file).split(heading + '\n')[1]
   assert(section, heading)
@@ -289,4 +330,4 @@ try {
     cp.execFileSync(binary, [corpusPath], { cwd: root, stdio: 'inherit' })
   }
 } finally { fs.rmSync(work, { recursive: true, force: true }) }
-console.log('documentation: links, JS syntax, API tables/defaults, positioning and native score contracts PASS')
+console.log('documentation: links, JS syntax, API tables/defaults, object examples/allowlists, positioning and native contracts PASS')

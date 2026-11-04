@@ -24,8 +24,10 @@ METHODS = ["clearVoices", "updatePanGainsForVoice", "findTailSlot",
            "acceptValidation", "warnOnceMethod", "voiceMaskForId", "updateVoice", "playTone", "publishTone", "noteOn", "noteOff",
            "containsRawKey", "readOptionalIntegerFrom", "readOptionalDoubleFrom",
            "heldPriorityAllows", "enqueueSimpleCommand", "stopAll", "setStatsEnabled"]
-OPTIONAL_METHODS = ["repeatTone", "prepareTone", "publishRepeatingTone", "renderToneFrame", "updateTone", "stopTone",
-                    "updateNote", "enableStats", "disableStats"]
+OPTIONAL_METHODS = ["playSequence", "updateSequence", "publishSoundSequence", "_updateSoundOptions", "repeatTone", "prepareTone", "publishRepeatingTone", "renderToneFrame", "updateTone", "stopTone",
+                    "updateNote", "enableStats", "disableStats", "initializeSoundIdentity", "heldIdentifier", "pruneHeldAliases",
+                    "_allocateSoundNote", "_soundRuntime", "_soundNoteToMidi", "_soundHeld", "_validateSoundOptions",
+                    "invalidateSoundControls", "setVolume", "setTempo"]
 EVENT_METHODS = ["scheduleSequencePoll", "cancelSequencePoll", "drainSequenceEvents"]
 
 
