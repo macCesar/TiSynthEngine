@@ -85,7 +85,7 @@ Use one owner for the engine. Start it once, pass a small audio service to the s
 
 ## Detect required capabilities
 
-TiSynth 2.0.0 supplies reusable sounds, held notes, patterns, repetitions and shared processing. Inspect `getContract().capabilities.soundObjects` and the documented property limits. The variation dictionary additionally uses `capabilities.variation` and `variationSchemaVersion`.
+TiSynth 2.0.0 supplies reusable sounds, held notes, patterns, repetitions and shared processing. Inspect `getContract().capabilities.soundObjects` and the documented property limits. The variation dictionary also uses `capabilities.variation` and `variationSchemaVersion`.
 
 Start the engine successfully before publishing audio. Reading metadata and creating definitions do not open the stream. Rebuild the app after replacing a native module.
 

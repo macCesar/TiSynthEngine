@@ -170,7 +170,7 @@ The module targets iOS 15 or newer. The module archive contains device, simulato
 
 ## Latency
 
-The final output stage retains zero samples, removing the previous mandatory 10 ms lookahead. End-to-end latency still includes the hardware and operating-system output buffers, route transport (including Bluetooth), and JavaScript publication plus callback-boundary latency for a newly submitted event. Accepted sequence steps then follow the sample clock. Attack envelopes and spatial/effect processing retain their existing timing.
+The final output stage retains zero samples. End-to-end latency still includes the hardware and operating-system output buffers, route transport (including Bluetooth), and JavaScript publication plus callback-boundary latency for a newly submitted event. Accepted sequence steps then follow the sample clock. Attack envelopes and spatial/effect processing retain their existing timing.
 
 Android reports a valid timestamp-based stream-to-DAC estimate without adding the former lookahead. Unavailable estimates remain `null`; this iOS backend continues to report `null`.
 

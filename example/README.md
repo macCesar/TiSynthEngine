@@ -1,12 +1,12 @@
 # Interactive example
 
-The Classic Titanium app in [app.js](app.js) demonstrates the Sound object API on Android and iOS. It requires a current source build whose `getContract().version` is `2.0.0`; published packages containing only the historical API do not run this source. `getDefaults().version` reports the same installed module version.
+The Classic Titanium app in [app.js](app.js) demonstrates the Sound object API on Android and iOS. It requires TiSynth 2.0.0, reported by `getContract().version`. `getDefaults().version` reports the same installed module version.
 
 The default configuration is 16 voices, `conservative` mixing and the `playback` session. Master volume starts at 100% and optional diagnostics start off. Creating a Sound does not reserve a voice.
 
 ## Run it
 
-1. Create a Classic Titanium application with Android and/or iOS support. For Alloy projects, use a separate Classic test app rather than replacing generated files.
+1. Create a Classic Titanium application with Android and/or iOS support. For Alloy projects, keep the example in a separate Classic test app so the Alloy-generated files remain intact.
 2. Build and install the current module source for the target platforms. Select the version declared by that build in `tiapp.xml`; rebuilding and reinstalling the test app is necessary after changing module packages.
 3. Copy the entire `example/` directory into the app's `Resources/`, including `app.js` and every file under `lib/`. No images or audio files are needed.
 4. Run with Titanium SDK 13.2.0.GA or newer, Android compile API 35 or newer, and iOS 15 or newer. See the [installation guide](../documentation/guide.md#install-the-module).

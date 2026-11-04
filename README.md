@@ -1,6 +1,6 @@
 # TiSynthEngine
 
-TiSynthEngine 2.0.0 is a native synthesizer for Titanium apps on Android and iOS. Define a sound once, then play it wherever the app needs it. The engine generates audio with oscillators rather than recorded samples, using the native audio clock for repetitions and patterns.
+TiSynthEngine 2.0.0 is a native synthesizer for Titanium apps on Android and iOS. Define a sound once, then play it wherever the app needs it. Oscillators generate the audio; the native audio clock schedules repetitions and patterns. The module does not play recorded samples.
 
 ```javascript
 var synth = require('ti.synthengine')

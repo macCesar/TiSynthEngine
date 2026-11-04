@@ -194,7 +194,7 @@ Disabling effects closes input smoothly and lets bounded tails finish, then bypa
 
 ## A brief level dip is gone before the meter refreshes
 
-Enable diagnostics, reset deliberately, then inspect `preLimiterPeakDb` and `maxLimiterReductionDb`. They retain the native pre-limiter peak and greatest attenuation since reset, including brief interventions between UI polls. `limiterReductionDb` is a window measurement and can return to zero sooner. Older packages may omit the accumulated fields; disabled/unmeasured diagnostics return `null`. See [measurement example](examples.md#measure-peaks-and-limiter-reduction).
+Enable diagnostics, reset deliberately, then inspect `preLimiterPeakDb` and `maxLimiterReductionDb`. They retain the native pre-limiter peak and greatest attenuation since reset, including brief interventions between UI polls. `limiterReductionDb` is a window measurement and can return to zero sooner. Disabled or unmeasured diagnostics return `null`. See [measurement example](examples.md#measure-peaks-and-limiter-reduction).
 
 If accumulated attenuation remains near zero, investigate phase cancellation between repeated same-pitch oscillators, changing filters or the device speaker/protection path. Compatible released public held-note repetitions preserve predecessor phase; simultaneous unisons, timed calls and transport notes retain their existing phase behavior. Extra effects and resonance can consume headroom even when source gain is fixed. Compare matched levels through headphones and the physical speaker before changing the mix globally.
 

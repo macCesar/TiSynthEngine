@@ -2,7 +2,7 @@
 
 TiSynth 2.0.0 provides reusable sound definitions and independent playback controls on Android and iOS. `createSound()` allocates no voice. Its definition survives `shutdown()` and can play again after `start()`. Rendering, gain, admission limits and scheduling use the existing native tone, chord, held, repetition and sequence paths.
 
-TiSynth uses one version: the installed module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`. `getContract()` additionally describes `capabilities.soundObjects: true`, supported interpretations, property names and units. The installed module has one version.
+TiSynth uses one version: the installed module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`. `getContract()` also describes `capabilities.soundObjects: true`, supported interpretations, property names and units.
 
 ## First sound
 
@@ -30,7 +30,7 @@ Run startup after the owning screen has settled, and call `shutdown()` when its 
 
 A preset has optional `name`, `sound` and `playback` dictionaries. `sound` holds synthesis and routing; `playback` holds pitch and interpretation. `getPreset()` returns a detached copy, preserving whether `type` was authored or inferred. Inputs are copied too.
 
-`Sound.set({ sound, playback })` recursively merges objects, replaces whole arrays and validates the complete result before replacing the stored definition. A failed change throws without partially applying it. `null` removes an optional leaf when the remaining preset is valid; it does not remove a whole `sound` or `playback` dictionary. Arrays, including `steps`, `notes`, `frequencies`, `waveTable`, `modulations` and variation ranges, replace rather than concatenate. `set()` affects future executions; it does not edit controls already playing.
+`Sound.set({ sound, playback })` recursively merges objects, replaces whole arrays and validates the complete result before replacing the stored definition. A failed change throws without partially applying it. `null` removes an optional leaf when the remaining preset is valid; it does not remove a whole `sound` or `playback` dictionary. Arrays, including `steps`, `notes`, `frequencies`, `waveTable`, `modulations` and variation ranges, replace the complete array; they do not concatenate. `set()` affects future executions; it does not edit controls already playing.
 
 `Sound.play(changes)` and `Sound.noteOn(changes)` accept **flat** overrides, such as `{ notes: ['D4'], volume: 0.2 }`. They do not accept nested `{ sound, playback }` arguments. An execution never mutates the stored preset. Repetition and pattern updates also accept `null` to remove an optional leaf when the complete resulting revision is valid. Such resets replace the native recipe without restarting its transport or repetition deadline. Held-note updates require concrete live values; use supported disabling values such as zero or an empty modulation array. Setting `notes` replaces a previously stored `frequencies` source and vice versa; supplying both together throws.
 
@@ -47,7 +47,7 @@ if (preset.sound.pan !== undefined || preset.playback.notes.length !== 1) throw 
 sound.play({ notes: ['E4'] })
 ```
 
-Unknown keys, wrong types, incompatible fields and out-of-range values throw descriptive `TypeError`s before publication. Fields are never silently stripped to make a definition valid. Numeric ranges and waveform-dependent rules remain those in the [native reference](api.md#strict-validation). Operational failures, including an unavailable engine or a rejected publication, return `false` rather than a control.
+Unknown keys, wrong types, incompatible fields and out-of-range values throw descriptive `TypeError`s before publication. Fields are never silently stripped to make a definition valid. Numeric ranges and waveform-dependent rules remain those in the [native reference](api.md#strict-validation). Operational failures, including an unavailable engine or a rejected publication, return `false`.
 
 ## Interpretations and returns
 
@@ -86,7 +86,7 @@ if (anotherNote) anotherNote.noteOff()
 
 Each start returns an independent `{ update, noteOff }` control with private identity. No `voiceId` is accepted or exposed. `noteOn()` always uses the single-note held path, even when called on a finite preset; finite `playback.duration` and `playback.frequencyEnd` are not applied to that held execution. Incompatible synthesis leaves, such as `sound.panEnd`, still throw rather than being discarded. It accepts flat synthesis and live pitch overrides, not `type`, `duration` or `frequencyEnd`.
 
-`Note.update()` accepts `notes` or `frequencies`, `volume`, `pan`, `lfoFreq`, `lfoDepth`, `noiseRate`, `lowPassHz`, `pulseWidth`, `filterHz`, `filterQ`, `fmRatio`, `fmDepth`, `spatialX`, `spatialY`, `effectSend` and `modulations`. Only compatible source controls can change; variation, waveform, attack/release, bus and priority are not live fields. Live FM depth can reach zero. Updates retain phase and envelope, using the existing native 10 ms transition. They validate the live patch rather than requiring attack-only settings again.
+`Note.update()` accepts `notes` or `frequencies`, `volume`, `pan`, `lfoFreq`, `lfoDepth`, `noiseRate`, `lowPassHz`, `pulseWidth`, `filterHz`, `filterQ`, `fmRatio`, `fmDepth`, `spatialX`, `spatialY`, `effectSend` and `modulations`. Only compatible source controls can change; variation, waveform, attack/release, bus and priority are not live fields. Live FM depth can reach zero. Updates retain phase and envelope, using the existing native 10 ms transition. They validate the live patch without requiring attack-only settings again.
 
 Release on touch cancellation, pause and owner teardown. A rejected release remains retryable; the [held ownership guidance](guide.md#hold-and-edit-a-voice) describes bounded recovery. After an accepted release, that control no longer updates or releases a second time. Ended or stolen voices retain the native no-op edit behavior while their control generation remains valid.
 
@@ -159,7 +159,7 @@ const statistics = synth.getStats()
 synth.disableStats()
 ```
 
-`setProcessing()` uses the existing shared effects chain and strict native validation. It converts delay `time` to native `timeMs` and reverb `decay` from milliseconds to seconds. Use delay `time` and reverb `decay` in milliseconds. Other chorus/delay/reverb/saturation, `inputGain` and `applyTo` fields retain the [processing reference](api.md#setmasterprocessingoptions) ranges and semantics.
+`setProcessing()` uses the shared effects chain and strict native validation. Supply delay `time` and reverb `decay` in milliseconds. The adapter converts them to native `timeMs` and seconds-based decay. Other chorus/delay/reverb/saturation, `inputGain` and `applyTo` fields retain the [processing reference](api.md#setmasterprocessingoptions) ranges and semantics.
 
 `bus`, `effectSend` and `priority` belong to `sound`, including a step's `sound` where supported. Routes, sends, fixed per-event gain and chord grouping are unchanged. Sound creation does not enable diagnostics; use `enableStats()` and `disableStats()`, and retain unavailable readings as `null`.
 
