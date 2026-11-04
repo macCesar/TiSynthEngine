@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased: 2.0.0
+
+- Add reusable `createSound({sound, playback})` definitions with temporary playback overrides, atomic validated revisions and owned held, repetition and pattern controls.
+- Invalidate controls across engine shutdown generations and retire native held-ID aliases without changing legacy playback signatures or DSP algorithms.
+- Use the module’s single `version` in both native defaults and the Sound contract. Replace the independent runtime `apiVersion` metadata field; consumers must update metadata checks.
+- Add scalar volume/tempo and structured processing adapters, TypeScript declarations and a migrated example.
+- Record within-platform acoustic equivalence, native boundary checks and bounded performance/memory evidence, including unresolved limits.
+
+
 ## Unreleased: local 1.1.0 candidates
 
 - Add optional native per-attack parameter ranges on timed tones, atomic chords, held notes and native sequence attacks, with shared deterministic selection, strict validation and an independent stream from oscillator noise.

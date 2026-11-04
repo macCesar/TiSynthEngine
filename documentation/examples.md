@@ -1,6 +1,6 @@
 # Examples
 
-Every snippet on this page uses the TiSynthEngine 1.1.0 contract. Unless a snippet includes startup code, it assumes the engine is already running.
+Every snippet on this page uses TiSynthEngine 2.0.0 (including its retained direct playback methods). Unless a snippet includes startup code, it assumes the engine is already running.
 
 For interactive instruments and native processing, begin with [held motors](#sustained-game-motor), [native sequences](#native-sequence-with-chords-and-edits), [master processing](#chorus-delay-reverb-and-creative-saturation) or [two LFOs](#two-voice-lfos). Use matching official packages and check method availability before enabling a feature.
 
@@ -9,8 +9,8 @@ var synth = require('ti.synthengine')
 var contract = synth.getDefaults()
 var WAVE = contract.waveTypes
 
-if (contract.apiVersion !== '1.1.0') {
-  throw new Error('TiSynthEngine 1.1.0 is required')
+if (contract.version !== '2.0.0') {
+  throw new Error('TiSynthEngine 2.0.0 is required')
 }
 ```
 

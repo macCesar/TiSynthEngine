@@ -2,22 +2,22 @@
 
 TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
 
-The module id is `ti.synthengine`. Android and iOS version `1.1.0` use public API version `1.1.0`. See the [audio pipeline changes and compatibility notes](documentation/audio-pipeline-validation.md).
+The module id is `ti.synthengine`. This branch is the Android/iOS **2.0.0 candidate**, with reusable `createSound()` definitions and private playback controls. TiSynth has one version: the module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`; there is no independent API version. The previous methods remain supported. See the [Sound object reference](documentation/sound-api.md) for their exact mappings and units.
 
-Version 1.1.0 supports [native finite-tone repetition](documentation/api.md#finite-tone-repetition), optional [native per-attack variation](documentation/native-variation.md), and API `1.1.0`. When migrating from 1.0.2, note that those packages report API 1.0.0 and do not support repetition or variation. The 1.0.2 archives remain unchanged.
-
+Published Android/iOS 1.1.0 archives contain native finite-tone repetition and native attack variation. The new object interface requires matching 2.0.0 candidate packages built from this branch. No 2.0.0 release is published by this change; existing published archives remain unchanged.
 
 ## What it is for
 
 Use TiSynthEngine for game and interface feedback, retro effects, alarms, notes, chords, arpeggios and simple noise-based percussion. Decay and sustain, a resonant filter, FM and detune also produce plucks, keys, bells and thick pads.
 
-The module synthesizes sound. It does not decode `.wav` or `.mp3` files, play recorded samples or provide MIDI. Sustained voices use app-supplied IDs for release and live updates. See [known limits](documentation/recommendations.md#known-limits) before using it for a long-running music or ambience system.
+The module synthesizes sound. It does not decode `.wav` or `.mp3` files, play recorded samples or provide MIDI. The object interface gives sustained voices independent controls for release and live updates; the previous interface keeps its app-supplied IDs. See [known limits](documentation/recommendations.md#known-limits) before using it for a long-running music or ambience system.
 
 ## Find your starting point
 
 | You want to... | Read this |
 | --- | --- |
 | Install the module and hear a first note | [Install](#install) and [quick start](#quick-start) |
+| Define reusable sounds, choose interpretation and own playback | [Sound objects: TiSynth 2.0.0](documentation/sound-api.md) |
 | Understand playable instruments versus complete sound effects | [Instruments, effects and sequences](documentation/instruments-and-effects.md) |
 | Add game sounds or interface feedback | [Sound design and recipes](documentation/sound-design.md) |
 | Build playable keys or a sustained game motor | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
@@ -40,34 +40,36 @@ The [documentation index](documentation/index.md) connects all guides. Start wit
 
 ## Install
 
-Download the platform-specific packages from [Android 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.1.0) and [iOS 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.1.0), then copy both archives into the Titanium app root:
+For this candidate, use matching locally built Android/iOS 2.0.0 archives and declare `version="2.0.0"` on both platforms. Candidate packages are not the published 1.1.0 downloads.
+
+For the published previous interface, download the platform-specific packages from [Android 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.1.0) and [iOS 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.1.0), then copy both archives into the Titanium app root:
 
 - `ti.synthengine-android-1.1.0.zip`
 - `ti.synthengine-iphone-1.1.0.zip`
 
-Declare both platform modules in `tiapp.xml`:
+Declare the candidate platform modules in `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.1.0">ti.synthengine</module>
-  <module platform="iphone" version="1.1.0">ti.synthengine</module>
+  <module platform="android" version="2.0.0">ti.synthengine</module>
+  <module platform="iphone" version="2.0.0">ti.synthengine</module>
 </modules>
 ```
 
-The Titanium CLI will install them under `modules/<platform>/ti.synthengine/1.1.0/` during the next build.
+The Titanium CLI installs matching candidate archives under `modules/<platform>/ti.synthengine/2.0.0/` during the next build. Use 1.1.0 declarations instead when installing the published 1.1.0 archives.
 
 ## Quick start
 
-These examples require module version 1.1.0 and API 1.1.0. Install matching Android/iOS archives and use `version="1.1.0"` in both module declarations above.
+The object examples require the 2.0.0 candidate on both platforms. The detailed references for the earlier methods remain valid for their unchanged signatures.
 
 Run this after the owning window has settled. The [layout-aware startup](#start-after-layout) section below shows how to defer startup and cancel it during cleanup.
 
 ```javascript
 var synth = require('ti.synthengine')
-var contract = synth.getDefaults()
+var contract = synth.getContract()
 
-if (contract.apiVersion !== '1.1.0') {
-  throw new Error('TiSynthEngine 1.1.0 is required')
+if (contract.version !== '2.0.0') {
+  throw new Error('TiSynthEngine 2.0.0 is required')
 }
 
 if (synth.start({
@@ -78,7 +80,11 @@ if (synth.start({
   throw new Error('The audio engine could not start')
 }
 
-if (!synth.playTone({ note: 'A4' })) {
+var sound = synth.createSound({
+  sound: { waveType: contract.waveTypes.SINE, volume: 0.25 },
+  playback: { type: 'tone', notes: ['A4'] }
+})
+if (!sound.play()) {
   synth.shutdown()
   throw new Error('The first note was rejected')
 }
@@ -124,7 +130,22 @@ Apps that start ads, remote configuration or entry animations may need a longer 
 
 Native sample-clock sequencing, stereo chorus/delay/reverb and optional creative saturation are available through the native APIs. New processing starts disabled. See the [transport and processing contract](documentation/api.md#native-sequence-transport).
 
-The API provides these methods and the `sequenceend` event.
+The object interface separates reusable definitions from each execution. All execution overrides are flat; `Sound.set()` accepts nested `sound`/`playback` changes. Sound and `setProcessing()` configuration errors throw, while operational rejection returns `false`. Native global controls keep their Boolean validation results. See [returns, lifetime and validation](documentation/sound-api.md#interpretations-and-returns).
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| `getContract()` | Object | Module version, object interface units and allowlists |
+| `createSound({ name, sound, playback })` | Sound | Validated reusable definition without allocating a voice |
+| `Sound.play(changes)` | Boolean or playback control | Finite attack, chord, repetition, pattern or held execution |
+| `Sound.noteOn(changes)` | Note or false | Single held note with independent `update()` and `noteOff()` |
+| `Sound.set({ sound, playback })` | nothing | Atomic deep merge for future executions; arrays replace |
+| `Sound.getPreset()` | Object | Detached authored definition, retaining inferred versus explicit type |
+| `setProcessing(options)` | Boolean | Shared effects; delay `time` and reverb `decay` use milliseconds |
+| `setTempo(bpm)` / `setVolume(volume)` | Boolean | Scalar global controls; previous dictionaries remain supported |
+
+A repetition control has `update()` and `stop()`. A pattern also has `getState()` and an `end` event containing only `{ reason }`. Controls expose no native identifiers. Their generation ends at shutdown; reusable Sounds survive it. An end event indicates transport retirement, not audible silence.
+
+The earlier methods and `sequenceend` event below retain their existing arguments, validation and return values. Use the object interface for new code.
 
 | Method                  | Returns   | What it does                                                                                             |
 | ----------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
@@ -151,11 +172,13 @@ The API provides these methods and the `sequenceend` event.
 | `stopAll()`             | nothing   | Stops every sequence, fades sounding voices and clears effect histories.                                                       |
 | `shutdown()`            | nothing   | Stops the stream, cancels pending pattern steps and frees resources.                                     |
 
-Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.
+The earlier Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.
 
 Use `updateNote({ voiceId, ...changes })` for held-note edits. `updateVoice` remains a deprecated equivalent alias. `setStatsEnabled(boolean)` is a deprecated equivalent of `enableStats()`/`disableStats()`. Both aliases remain available without repeated runtime warnings or a scheduled removal date.
 
 ## Sustained voices, musical transport and effects
+
+The examples in this section use the supported earlier interface. The [Sound reference](documentation/sound-api.md) shows equivalent object-based ownership without changing native rendering.
 
 A held key plays a timbre at the key's pitch until the app releases it. A complete effect also includes its original frequencies, timed sweeps, layers and attack pattern. Reusing only its base waveform does not reproduce that recipe. See [instruments, sound effects and complete sequences](documentation/instruments-and-effects.md) for separate workflows, examples and capacity/gain guidance.
 
@@ -167,7 +190,7 @@ A held key plays a timbre at the key's pitch until the app releases it. A comple
 | `modulations` on held/sequence voices | Up to two sine/triangle LFOs for filter cutoff, square PWM or sine FM, with free or tempo-synced rates. | [LFO example](documentation/examples.md#two-voice-lfos) |
 | Accumulated signal diagnostics | See brief pre-limiter peaks and limiter attenuation that happened between UI polls. | [Measure the mix](documentation/examples.md#measure-peaks-and-limiter-reduction) |
 
-Version 1.0.2 reports `apiVersion: '1.0.0'`; version 1.1.0 reports `apiVersion: '1.1.0'`. Detect the methods you need and rebuild the app with matching official Android/iOS packages. The [guide](documentation/guide.md#detect-required-capabilities) shows feature detection. Timed playback remains available through its existing methods.
+The current module reports its installed version through `version` in both metadata methods. Historical released archives are unchanged. Detect the methods you need and rebuild the app with matching Android/iOS packages. The [guide](documentation/guide.md#detect-required-capabilities) shows feature detection. Timed playback remains available through its existing methods.
 
 The initial module state is `inputGain: 1`, all four master processors disabled and no additional voice LFOs. Apps enable each effect explicitly. These features are available to every Titanium consumer, including games. Select processed categories with `applyTo`; an explicit per-voice `effectSend` overrides category selection. Music, effects, UI and ambience share one effects chain and one final limiter. Turning them off drains their tails; `stopAll()` performs panic and clears effect histories. Saturation changes timbre and remains separate from final limiter protection.
 

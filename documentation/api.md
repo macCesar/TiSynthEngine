@@ -2,13 +2,13 @@
 
 Module id: `ti.synthengine`
 
-Public API version: `1.1.0`
+Module version: `2.0.0` candidate. The [Sound object reference](sound-api.md) describes the preferred interface; the direct methods below remain available.
 
 Android and iOS expose the same public methods, one event and waveform values. Option objects are strict: an unknown key is rejected with `unsupported_option`. Reported metadata and rejection diagnostics have platform differences; this reference does not promise sample-identical rendering between Android and iOS.
 
 ## Native attack variation (package 1.1.0)
 
-The optional `variation` dictionary is accepted by `playTone`, `repeatTone`, `playChord`, `noteOn`, sequence `voice` and step `overrides`. Version 1.1.0 reports public API `1.1.0`. Both platforms advertise `capabilities.variation: true` and `variationSchemaVersion: 1`; consumers must require both before sending the dictionary. The published 1.0.2 packages do not support it. See [native variation](native-variation.md) for fields, source restrictions, seeds and examples. Native `amount` is linear; Studio divides its displayed percentage by 100. `updateNote` rejects the dictionary. An override replaces the whole inherited dictionary, and an amount-zero dictionary still validates its ranges.
+The optional `variation` dictionary is accepted by `playTone`, `repeatTone`, `playChord`, `noteOn`, sequence `voice` and step `overrides`. Both platforms advertise `capabilities.variation: true` and `variationSchemaVersion: 1`; consumers must require both before sending the dictionary. The published 1.0.2 packages do not support it. See [native variation](native-variation.md) for fields, source restrictions, seeds and examples. Native `amount` is linear; Studio divides its displayed percentage by 100. `updateNote` rejects the dictionary. An override replaces the whole inherited dictionary, and an amount-zero dictionary still validates its ranges.
 
 ## Return values
 
@@ -24,11 +24,11 @@ Returns the installed contract without starting the audio stream.
 var contract = synth.getDefaults()
 ```
 
-The shared result in version 1.1.0 has this shape; Android adds the platform metadata described below. Published 1.0.2 packages retain the core contract but omit the variation capability/schema fields:
+The shared result in TiSynth 2.0.0 has this shape; Android adds the platform metadata described below. `version` identifies the installed module, with no independent API version:
 
 ```javascript
 {
-  apiVersion: '1.1.0',
+  version: '2.0.0',
   capabilities: { variation: true, toneRepetition: true },
   variationSchemaVersion: 1,
   defaults: {
@@ -156,7 +156,7 @@ On iOS, `playback` ignores the silent switch and interrupts other apps' audio. `
 
 ## `noteOn(options)`
 
-Starts a sustained native voice. Detect `typeof synth.noteOn === 'function'`, `noteOff` and `updateNote` before enabling their controls; the current `apiVersion` is `1.1.0`. There is no duration limit and no JavaScript timer holds the note.
+Starts a sustained native voice. Detect `typeof synth.noteOn === 'function'`, `noteOff` and `updateNote` before enabling their controls; the installed module is identified by `getDefaults().version`. There is no duration limit and no JavaScript timer holds the note.
 
 | Field                                   | Rule                                                                                                                               |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

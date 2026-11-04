@@ -2,24 +2,24 @@
 
 `variation` lets the engine choose bounded parameter values when it admits an attack. Repeated shots can have different pitch, noise color or filter settings without JavaScript randomization. Each voice keeps the chosen values for its lifetime; existing envelopes, sweeps and LFOs continue from that starting configuration.
 
-Android and iOS support this dictionary in the 1.1.0 packages, with public API version `1.1.0` and variation schema version `1`. The published 1.0.2 packages do not accept it.
+Android and iOS support this dictionary in TiSynth 2.0.0 and the earlier 1.1.0 packages. The variation data schema is `1`. The published 1.0.2 packages do not accept it.
 
-## Select version 1.1.0
+## Select the module version
 
-Install the matching Android and iOS 1.1.0 archives in the app and select them in `tiapp.xml`:
+Install the matching Android and iOS 2.0.0 candidate archives in the app and select them in `tiapp.xml`:
 
 ```xml
 <modules>
-  <module platform="android" version="1.1.0">ti.synthengine</module>
-  <module platform="iphone" version="1.1.0">ti.synthengine</module>
+  <module platform="android" version="2.0.0">ti.synthengine</module>
+  <module platform="iphone" version="2.0.0">ti.synthengine</module>
 </modules>
 ```
 
-Rebuild and reinstall the application after replacing native modules. Copying module files alone does not update an installed app. Keep the published 1.0.2 archives separate; version 1.1.0 reports API `1.1.0`.
+Rebuild and reinstall the application after replacing native modules. Copying module files alone does not update an installed app. Keep historical released archives separate. The installed module version is available as `getDefaults().version`.
 
 ## Detect support and start playback
 
-Check both metadata fields. API version alone does not identify variation support. Omit the property completely when either announcement is missing, including when the requested amount is zero.
+Check both capability/schema fields. The module version alone is not a substitute for checking the feature needed. Omit the property completely when either announcement is missing, including when the requested amount is zero.
 
 ```javascript
 var synth = require('ti.synthengine')

@@ -4,34 +4,34 @@ Install TiSynthEngine, start it after layout settles, and release its native aud
 
 ## Install the module
 
-Download both official packages from [Android 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.1.0) and [iOS 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.1.0). Matching archives are produced under `android/dist` and `ios/dist`:
+For the 2.0.0 candidate, build the matching Android/iOS packages from this source. Archives are produced under `android/dist` and `ios/dist`. No 2.0.0 release has been published:
 
-- `ti.synthengine-android-1.1.0.zip`
-- `ti.synthengine-iphone-1.1.0.zip`
+- `ti.synthengine-android-2.0.0.zip`
+- `ti.synthengine-iphone-2.0.0.zip`
 
 Put the archives in the Titanium project root or install them through the Titanium CLI. Pin the same version for both platforms:
 
 ```xml
 <modules>
-  <module platform="android" version="1.1.0">ti.synthengine</module>
-  <module platform="iphone" version="1.1.0">ti.synthengine</module>
+  <module platform="android" version="2.0.0">ti.synthengine</module>
+  <module platform="iphone" version="2.0.0">ti.synthengine</module>
 </modules>
 ```
 
 TiSynthEngine requires Titanium SDK 13.2.0.GA or newer. Android projects must compile against API 35 or newer. The iOS module requires iOS 15 or newer.
 
-These declarations select version 1.1.0. Check the [variation metadata](#variation-support-in-version-110) before using native attack variation.
+These declarations select version 2.0.0. Check the [variation metadata](#variation-support-in-version-110) before using native attack variation.
 
 ## Load and verify the contract
 
-Require the module once in the code that owns audio. Check `apiVersion` before starting. Also check the [spatial limits](#detect-the-installed-feature) and [statistics methods](#read-engine-statistics) if the app needs those features. Check [required capabilities](#detect-required-capabilities) for held voices, musical transport and master processing.
+Require the module once in the code that owns audio. Check the installed module `version` before starting. Also check the [spatial limits](#detect-the-installed-feature) and [statistics methods](#read-engine-statistics) if the app needs those features. Check [required capabilities](#detect-required-capabilities) for held voices, musical transport and master processing.
 
 ```javascript
 var synth = require('ti.synthengine')
 var contract = synth.getDefaults()
 
-if (contract.apiVersion !== '1.1.0') {
-  throw new Error('TiSynthEngine 1.1.0 is required; found ' + contract.apiVersion)
+if (contract.version !== '2.0.0') {
+  throw new Error('TiSynthEngine 2.0.0 is required; found ' + contract.version)
 }
 ```
 
@@ -85,7 +85,7 @@ Use one owner for the engine. Start it once, pass a small audio service to the s
 
 ## Detect required capabilities
 
-Public API version 1.1.0 includes held voices, sample-clock sequences, stereo effects and two optional LFOs. Require the methods used by each feature before enabling its controls:
+TiSynth includes held voices, sample-clock sequences, stereo effects and two optional LFOs. Require the methods used by each feature before enabling its controls:
 
 ```javascript
 function hasMethods (names) {
@@ -580,13 +580,13 @@ Fixed event/input gain does not normalize continuously by active voice count. Co
 
 ## Variation support in version 1.1.0
 
-Source builds produce archives at `android/dist/ti.synthengine-android-1.1.0.zip` and `ios/dist/ti.synthengine-iphone-1.1.0.zip`. Keep them separate from the published 1.0.2 packages. Install both matching 1.1.0 packages in the consumer app and select them explicitly:
+Source builds produce archives at `android/dist/ti.synthengine-android-2.0.0.zip` and `ios/dist/ti.synthengine-iphone-2.0.0.zip`. Keep them separate from the published 1.0.2 packages. Install both matching 2.0.0 candidate packages in the consumer app and select them explicitly:
 
 ```xml
 <modules>
-  <module platform="android" version="1.1.0">ti.synthengine</module>
-  <module platform="iphone" version="1.1.0">ti.synthengine</module>
+  <module platform="android" version="2.0.0">ti.synthengine</module>
+  <module platform="iphone" version="2.0.0">ti.synthengine</module>
 </modules>
 ```
 
-Rebuild and reinstall the application after replacing the native modules. Published 1.0.2 retains API `1.0.0`; version 1.1.0 reports API `1.1.0` and supports native finite-tone repetition. Check the variation announcements directly as well. Send a `variation` dictionary only when `getDefaults().capabilities.variation === true` and `getDefaults().variationSchemaVersion === 1`. If either announcement is absent, omit the property completely, including at amount zero. See [native attack variation](native-variation.md) for accepted locations, bounded ranges and seed behavior.
+Rebuild and reinstall the application after replacing the native modules. TiSynth 2.0.0 retains native finite-tone repetition. Check the variation announcements directly as well. Send a `variation` dictionary only when `getDefaults().capabilities.variation === true` and `getDefaults().variationSchemaVersion === 1`. If either announcement is absent, omit the property completely, including at amount zero. See [native attack variation](native-variation.md) for accepted locations, bounded ranges and seed behavior.

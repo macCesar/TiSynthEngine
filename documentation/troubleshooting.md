@@ -45,27 +45,25 @@ The envelope and filter rules apply to the final values of each sounding event. 
 
 For the shaping controls, check the discontinuous disabled values as well as the numeric range: `bitDepth` accepts 0 or 2 through 16, and `pulseWidthEnd` accepts 0 or 0.05 through 0.95. A `waveTable` must contain only finite values from -1 to 1.
 
-## The installed contract is wrong
+## The installed module version is wrong
 
 Check the native binary at startup:
 
 ```javascript
-var actual = synth.getDefaults().apiVersion
-if (actual !== '1.1.0') {
-  throw new Error('Expected TiSynthEngine 1.1.0, found ' + actual)
+var actual = synth.getDefaults().version
+if (actual !== '2.0.0') {
+  throw new Error('Expected TiSynthEngine 2.0.0, found ' + actual)
 }
 ```
 
-`apiVersion` describes the public contract, separately from the package version. Version 1.1.0 uses API 1.1.0; published 1.0.2 uses API 1.0.0. For version 1.1.0, confirm both entries in `tiapp.xml` pin module version 1.1.0. Then remove the application's build output and rebuild so Titanium does not reuse an archive from an earlier build. The module directories should be:
+`version` is the installed module version in both `getDefaults()` and `getContract()`. TiSynth has no independent API version. Pin both entries in `tiapp.xml` to the intended module version and rebuild the app so Titanium includes the new archive. For this candidate, the directories are:
 
 ```text
-modules/android/ti.synthengine/1.1.0/
-modules/iphone/ti.synthengine/1.1.0/
+modules/android/ti.synthengine/2.0.0/
+modules/iphone/ti.synthengine/2.0.0/
 ```
 
-Module version `1.1.0` reports API `1.1.0`. Check the capability/schema pair before using variation.
-
-For binaural, also inspect `getDefaults().limits.spatialX` and `.spatialY`. Use the official packages to avoid stale development binaries. Copying the package does not update an already installed app: rebuild and reinstall it.
+Check the required methods and capability/schema pair before using variation. For binaural, inspect `getDefaults().limits.spatialX` and `.spatialY`. Copying a package does not update an installed app: rebuild and reinstall it. Historical released archives retain their original metadata; this cleanup applies to the 2.0.0 candidate.
 
 ## Binaural does not change the position
 
@@ -174,7 +172,7 @@ Include the platform, OS version, device model, Titanium SDK version, module ver
 
 ## Held notes, sequences or effects methods are missing
 
-Published 1.0.2 reports API version 1.0.0 and provides `updateVoice`; version 1.1.0 reports API 1.1.0 and recommends `updateNote`. Detect `noteOn`/`noteOff`/`updateNote`, all four sequence methods and `setMasterProcessing` according to the feature needed. Install matching current Android/iOS packages, rebuild and reinstall the consumer app. A stale development binary may report the same version without the complete release API. See [capability detection](guide.md#detect-required-capabilities).
+Historical 1.0.2 packages provide `updateVoice`; later packages also provide `updateNote`. TiSynth 2.0.0 recommends owned Sound controls. Detect `noteOn`/`noteOff`/`updateNote`, all four sequence methods and `setMasterProcessing` according to the feature needed. Install matching current Android/iOS packages, rebuild and reinstall the consumer app. A stale development binary may report the same version without the complete release API. See [capability detection](guide.md#detect-required-capabilities).
 
 ## A held voice does not release or update
 
