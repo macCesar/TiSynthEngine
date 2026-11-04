@@ -6,18 +6,18 @@ These are application roles built on the same native synthesizer and output chai
 
 ## Choose the playback contract
 
-| Intention                                                         | Native methods                                              | Who ends the sound?                                      | What to preserve                                                             |
-| ----------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Play a key until the finger lifts                                 | `noteOn`, `updateNote`, `noteOff`                           | The app releases its unique voice ID                     | Timbre, tuning, envelope, contact ownership                                  |
-| Fire one finite sound                                             | `playTone`                                                  | Native duration and release                              | Original frequency, endpoints, duration, envelope, gain                      |
-| Repeat one finite tone, including simultaneous independent layers | `repeatTone({ intervalMs, ... })`, `updateTone`, `stopTone` | Native audio clock; stop cancels future attacks only     | Original finite-tone recipe, interval, overlap budget and each tone ID       |
-| Fire a simultaneous chord with shared shaping                     | `playChord`                                                 | Native duration and release                              | All pitches, per-note pan/detune, shared envelope, native chord compensation |
-| Play a melody, alarm, layered effect, or repeated firing pattern  | `playSequence`, optionally `updateSequence`                 | Native step clock; `stopSequence` cancels future attacks | Complete ordered steps, rests, lengths, overrides and independent layers     |
-| Add chorus, delay, reverb or creative saturation                  | `setMasterProcessing`                                       | The shared processor owns its tails                      | Routing, sends, input gain, effect settings and output headroom              |
+| Intention | Sound interface | Who ends the sound? |
+| --- | --- | --- |
+| Play a key until the finger lifts | Held definition's `play()` or `sound.noteOn()` | The owner calls its note control's `noteOff()` |
+| Fire one finite sound | Tone definition's `play()` | Finite duration includes release |
+| Repeat one finite tone or independent layer | Repeat definition's `play()` | Control `stop()` cancels future attacks; admitted attacks finish |
+| Fire a simultaneous chord | Chord definition's `play()` | Native duration and release |
+| Play an ordered score, alarm or pattern | Pattern definition's `play()` | Native clock; control `stop()` releases its voices |
+| Add chorus, delay, reverb or saturation | `synth.setProcessing()` | Shared processor retains bounded tails |
 
 The last row describes audio processing effects. Those processors are different from an authored sound effect, such as a laser or an explosion. A laser may use no reverb or delay at all.
 
-All examples below assume successful startup. Use constants from the installed module and check native acceptance:
+The detailed recipes below also show supported direct native calls to explain their rendering parameters. Reusable application code uses the Sound controls above; see the [Sound reference](sound-api.md). All examples assume successful startup:
 
 ```javascript
 var synth = require('ti.synthengine')
@@ -141,7 +141,7 @@ Each layer consumes one of 32 repetition slots, independently of the four sequen
 
 `updateTone` merges changes with the last accepted recipe and validates it as a whole. It changes the next scheduled attack without advancing it. `note` and `frequency` replace each other. A supplied variation dictionary replaces the previous one, and `{ amount: 0 }` disables future variation. Each repetition advances its reproducible native stream only for admitted attacks; parameter edits retain its counter, while changing seed restarts the succession. Sounding attacks keep their original recipe. See [the complete repetition contract](api.md#finite-tone-repetition).
 
-Native sequences remain appropriate for complete ordered scores. Keep every positive sequence ID and wait for matching `sequenceend` retirement when replacing a sequence. `stopSequence` releases that sequence's emitted voices, whereas `stopTone` lets admitted finite attacks finish. Application recipe functions remain ordinary JavaScript; there is no built-in named-recipe registry. Published 1.0.2 packages do not provide finite-tone repetition or variation.
+Native sequences remain appropriate for complete ordered scores. Keep every positive sequence ID and wait for matching `sequenceend` retirement when replacing a sequence. `stopSequence` releases that sequence's emitted voices, whereas `stopTone` lets admitted finite attacks finish. Application recipe functions remain ordinary JavaScript; there is no built-in named-recipe registry.
 
 ## 4. Polyphony, gain and output protection
 

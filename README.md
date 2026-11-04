@@ -1,53 +1,35 @@
 # TiSynthEngine
 
-TiSynthEngine is a native synthesizer for Titanium apps on Android and iOS. It generates tones, sustained voices, chords, sweeps, noise and sample-clock sequences without bundled audio files. Optional native chorus, ping-pong delay, reverb, creative saturation and two voice LFOs add movement and space. Optional `spatialX` and `spatialY` provide headphone positioning on a front plane; see [binaural positioning](documentation/api.md#binaural-front-plane-positioning) and [app integration](documentation/guide.md#integrate-binaural-in-a-2d-app).
+TiSynthEngine 2.0.0 is a native synthesizer for Titanium apps on Android and iOS. Define a sound once, then play it wherever the app needs it. The engine generates audio with oscillators rather than recorded samples, using the native audio clock for repetitions and patterns.
 
-The module id is `ti.synthengine`. This branch is the Android/iOS **2.0.0 candidate**, with reusable `createSound()` definitions and private playback controls. TiSynth has one version: the module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`; there is no independent API version. The previous methods remain supported. See the [Sound object reference](documentation/sound-api.md) for their exact mappings and units.
+```javascript
+var synth = require('ti.synthengine')
+var W = synth.getContract().waveTypes
 
-Published Android/iOS 1.1.0 archives contain native finite-tone repetition and native attack variation. The new object interface requires matching 2.0.0 candidate packages built from this branch. No 2.0.0 release is published by this change; existing published archives remain unchanged.
+synth.start({ maxVoices: 16, audioSession: 'ambient' })
 
-## What it is for
+var bell = synth.createSound({
+  sound: { waveType: W.SINE, volume: 0.25, attack: 5, release: 120 },
+  playback: { type: 'tone', notes: ['A4'], duration: 400 }
+})
 
-Use TiSynthEngine for game and interface feedback, retro effects, alarms, notes, chords, arpeggios and simple noise-based percussion. Decay and sustain, a resonant filter, FM and detune also produce plucks, keys, bells and thick pads.
+bell.play()
+bell.play({ notes: ['C5'], volume: 0.15 })
+```
 
-The module synthesizes sound. It does not decode `.wav` or `.mp3` files, play recorded samples or provide MIDI. The object interface gives sustained voices independent controls for release and live updates; the previous interface keeps its app-supplied IDs. See [known limits](documentation/recommendations.md#known-limits) before using it for a long-running music or ambience system.
-
-## Find your starting point
-
-| You want to... | Read this |
-| --- | --- |
-| Install the module and hear a first note | [Install](#install) and [quick start](#quick-start) |
-| Define reusable sounds, choose interpretation and own playback | [Sound objects: TiSynth 2.0.0](documentation/sound-api.md) |
-| Understand playable instruments versus complete sound effects | [Instruments, effects and sequences](documentation/instruments-and-effects.md) |
-| Add game sounds or interface feedback | [Sound design and recipes](documentation/sound-design.md) |
-| Build playable keys or a sustained game motor | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
-| Schedule music, chords, swing or arpeggios | [Native musical transport](documentation/guide.md#choose-the-musical-transport) |
-| Vary repeated attacks with bounded native parameters | [Variation reference and examples](documentation/native-variation.md) |
-| Find an option, range or return value | [API reference](documentation/api.md) |
-| Run an interactive device example | [Example app and checklist](example/README.md) |
-| Diagnose silence, rough sound or missed audio buffers | [Troubleshooting](documentation/troubleshooting.md) and [statistics](documentation/stats-performance.md) |
-| Understand what has actually been verified | [Validation and performance](#validation-and-performance) |
-
-The [documentation index](documentation/index.md) connects all guides. Start with the [sound design guide](documentation/sound-design.md) if synthesis terminology is new to you.
+`sound` contains the synthesis settings. `playback` contains default pitches, timing and the playback type. Arguments to `play()` change only that execution; `set()` changes the stored definition for future executions. See the [complete Sound reference](documentation/sound-api.md) for properties, units and validation.
 
 ## Requirements
 
 - Titanium SDK 13.2.0.GA or newer.
-- Android projects must compile against API 35 or newer.
-- Android: `arm64-v8a`, `armeabi-v7a`, `x86` or `x86_64`.
-- iOS 15.0 or newer.
-- iOS builds can target a device, simulator or Mac Catalyst.
+- Android projects compiled against API 35 or newer, using `arm64-v8a`, `armeabi-v7a`, `x86` or `x86_64`.
+- iOS 15.0 or newer; device, simulator and Mac Catalyst builds are supported.
 
 ## Install
 
-For this candidate, use matching locally built Android/iOS 2.0.0 archives and declare `version="2.0.0"` on both platforms. Candidate packages are not the published 1.1.0 downloads.
+Use matching Android and iOS 2.0.0 packages from the [releases page](https://github.com/macCesar/TiSynthEngine/releases), or build them from this source. Check the available release version before downloading. Source builds produce `android/dist/ti.synthengine-android-2.0.0.zip` and `ios/dist/ti.synthengine-iphone-2.0.0.zip`.
 
-For the published previous interface, download the platform-specific packages from [Android 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/android-1.1.0) and [iOS 1.1.0](https://github.com/macCesar/TiSynthEngine/releases/tag/ios-1.1.0), then copy both archives into the Titanium app root:
-
-- `ti.synthengine-android-1.1.0.zip`
-- `ti.synthengine-iphone-1.1.0.zip`
-
-Declare the candidate platform modules in `tiapp.xml`:
+Put both archives in the Titanium app root and declare the modules in `tiapp.xml`:
 
 ```xml
 <modules>
@@ -56,45 +38,129 @@ Declare the candidate platform modules in `tiapp.xml`:
 </modules>
 ```
 
-The Titanium CLI installs matching candidate archives under `modules/<platform>/ti.synthengine/2.0.0/` during the next build. Use 1.1.0 declarations instead when installing the published 1.1.0 archives.
+Build and reinstall the app after replacing a native package. `getContract().version` and `getDefaults().version` report the installed module version. `getContract()` also describes the Sound interface, units and property allowlists.
 
 ## Quick start
 
-The object examples require the 2.0.0 candidate on both platforms. The detailed references for the earlier methods remain valid for their unchanged signatures.
-
-Run this after the owning window has settled. The [layout-aware startup](#start-after-layout) section below shows how to defer startup and cancel it during cleanup.
+Create reusable definitions during setup. Run startup after layout settles, handle operational rejection when it matters to the application, and shut down the engine when its owner closes. Creating a Sound does not start audio or reserve a voice.
 
 ```javascript
 var synth = require('ti.synthengine')
 var contract = synth.getContract()
 
-if (contract.version !== '2.0.0') {
-  throw new Error('TiSynthEngine 2.0.0 is required')
+if (!synth.start({ maxVoices: 16, maxSequences: 4, audioSession: 'ambient' })) {
+  throw new Error('Audio startup rejected')
 }
 
-if (synth.start({
-  maxVoices: 16,
-  mixingProfile: 'conservative',
-  audioSession: 'ambient'
-}) === false) {
-  throw new Error('The audio engine could not start')
-}
-
-var sound = synth.createSound({
-  sound: { waveType: contract.waveTypes.SINE, volume: 0.25 },
-  playback: { type: 'tone', notes: ['A4'] }
+var explosion = synth.createSound({
+  sound: { waveType: contract.waveTypes.NOISE, volume: 0.2, attack: 2, release: 100 },
+  playback: { type: 'tone', frequencies: [80], duration: 250 }
 })
-if (!sound.play()) {
-  synth.shutdown()
-  throw new Error('The first note was rejected')
-}
+
+explosion.play()
 ```
 
-This game-oriented example uses `ambient`: on iOS it respects silent mode and mixes with other apps. The module default is `playback`, which ignores silent mode. Android validates this option without changing its output. Changing the session policy requires `shutdown()` followed by `start()`.
+On iOS, `ambient` respects silent mode and mixes with other apps; the default `playback` policy ignores silent mode. Android validates this setting without changing its output. Changing the session policy, mixing profile or voice capacity requires shutdown and startup.
 
-Call `shutdown()` when the screen or app that owns the audio closes. For timed sounds, follow the [interactive example setup and test checklist](example/README.md). The [copyable advanced examples](documentation/examples.md#sustained-game-motor) cover held voices, sample-clock transport, effects and modulation.
+## Public methods
+
+| Owner | Method | Purpose |
+| --- | --- | --- |
+| Module | `createSound({ name?, sound?, playback? })` | Create a validated reusable definition |
+| Sound | `play(changes?)` | Play with optional flat overrides |
+| Sound | `noteOn(changes?)` | Start a single held note |
+| Sound | `set({ sound?, playback? })` | Validate and apply an atomic stored revision |
+| Sound | `getPreset()` | Return an independent copy of the definition |
+| Note control | `update(changes)`, `noteOff()` | Change or release that held note |
+| Repetition control | `update(changes)`, `stop()` | Change future attacks or cancel repetition |
+| Pattern control | `update(changes)`, `stop()`, `getState()` | Edit, stop or inspect that pattern |
+| Pattern control | `addEventListener('end', listener)`, `removeEventListener('end', listener)` | Observe completion or stopping |
+| Module | `start(options)`, `shutdown()` | Own the native audio lifecycle |
+| Module | `setVolume(number)`, `setTempo(number)` | Set master gain or beats per minute |
+| Module | `setProcessing(options)` | Configure shared effects and category routing |
+| Module | `stopAll()` | Global panic: stop scheduling, fade voices and clear effect histories |
+| Module | `getContract()`, `getDefaults()` | Read metadata, constants, defaults and limits |
+| Module | `getStats()`, `resetStats()`, `enableStats()`, `disableStats()` | Read and control diagnostics |
+
+The [direct native reference](documentation/api.md) documents supported low-level calls and their exact parameter ranges. The [upgrade guide](documentation/upgrade-2.0.0.md) contains the method mapping and naming changes.
+
+## Playback types and controls
+
+| `playback.type` | Use | Accepted return from `play()` |
+| --- | --- | --- |
+| `tone` | One finite pitch | `true`; it finishes naturally |
+| `chord` | One atomic group of pitches | `true`; it finishes naturally |
+| `held` | One note released by interaction | Note control |
+| `repeat` | A finite tone repeated by the native clock | Repetition control |
+| `pattern` | Ordered notes, chords and rests | Pattern control |
+
+Operational rejection returns `false`. Finite tones and chords expose no individual stop identifier. Release a held note through its own control; stopping a repetition cancels future attacks while admitted finite attacks finish. Pattern stopping releases that pattern's voices. Release and processing tails may remain after a pattern's `end` event.
+
+Controls belong to the engine generation that created them. Shutdown invalidates them; old controls cannot affect playback after a restart. Sound definitions remain reusable.
+
+## Properties and units
+
+Use `notes` for note names or MIDI pitch numbers, or `frequencies` for hertz. Tone, repetition and held execution use one pitch; chords accept up to 32. Patterns contain up to 512 steps, with notes, frequencies or a rest in each step. MIDI numbers identify pitches; the module does not read MIDI files.
+
+Synthesis settings include waveform, volume, ADSR, filters, FM, vibrato, noise shaping, PWM, wavetable, quantization, detune, stereo/spatial placement, LFOs, routing and variation. Their compatibility depends on the playback type and source. See the [property allowlists](documentation/sound-api.md#property-allowlists) and [native ranges](documentation/api.md).
+
+| Property | Meaning |
+| --- | --- |
+| `sound.attack`, `decay`, `release` | Milliseconds |
+| Finite `playback.duration` | Total milliseconds, including release |
+| Repetition `playback.interval` | Integer milliseconds between starts |
+| Pattern root/step `interval` and step `length` | Beats by default, or milliseconds with `timeUnit: 'ms'` |
+| `setTempo(number)` | Beats per minute |
+| Processing delay `time` and reverb `decay` | Milliseconds |
+
+A pattern interval sets the next onset; its `length` or `gate` determines when release begins. Changing interpretation can change envelope and sweep behavior. Preserve the intended playback type when reusing an authored effect.
+
+## Variation
+
+Put bounded random variation in the sound definition. The native engine selects values once per admitted attack and keeps them for that voice. Amount interpolates from the authored value toward each range; explicit seeds reproduce parameter selections.
+
+```javascript
+var bell = synth.createSound({
+  sound: {
+    waveType: synth.getContract().waveTypes.SINE,
+    volume: 0.25, attack: 5, release: 120,
+    variation: {
+      amount: 0.6,
+      ranges: { volume: [0.18, 0.25], pitchCents: [-8, 8] }
+    }
+  },
+  playback: { type: 'tone', notes: ['A4'], duration: 400 }
+})
+
+bell.play()
+```
+
+See [variation](documentation/native-variation.md) for source restrictions, inheritance and seed behavior. Variation does not require application randomization or an attack timer.
+
+## Processing and gain
+
+```javascript
+synth.setVolume(0.6)
+synth.setTempo(110)
+synth.setProcessing({
+  applyTo: ['music'],
+  delay: { enabled: true, time: 250, feedback: 0.25, mix: 0.1 },
+  reverb: { enabled: true, decay: 1500, damping: 0.6, mix: 0.12 }
+})
+```
+
+Chorus, delay, reverb and creative saturation start disabled. `sound.bus` selects `music`, `effects`, `ui` or `ambience`; an explicit `effectSend` overrides category selection. There is one shared effects chain and one final stereo sample-peak protector. Event gain is fixed; starting unrelated voices does not normalize existing ones. Chords retain their native grouping and gain compensation.
+
+The pool supports up to 32 voices and four patterns. Budget releases, overlapping attacks and processing tails. `maxVoices` sets capacity, not loudness. Mixing profiles are `conservative`, `balanced`, `speakerSafe` and `raw`. Read [gain recommendations](documentation/recommendations.md) before raising levels.
+
+## Strict options
+
+Sound definitions, revisions and execution overrides reject unknown keys, wrong types, incompatible combinations and out-of-range values with descriptive errors. `set()` validates the complete result before publishing it. It recursively merges objects and replaces arrays; active executions keep their own settings.
+
+A valid request can still fail operationally because the engine is stopped or native capacity/publication is unavailable. Playback returns `false` for that case. Module lifecycle and global setters retain their documented return contracts. See [errors and lifetime](documentation/sound-api.md#lifetime-and-errors).
 
 ## Start after layout
+
 
 Do not open the low-latency stream while Titanium is still laying out the first window. On some Android devices that work competes with audio startup and the first sound underruns.
 
@@ -126,385 +192,27 @@ win.open()
 
 Apps that start ads, remote configuration or entry animations may need a longer quiet period. The [guide](documentation/guide.md#lifecycle) and [`example/app.js`](example/app.js) include full cleanup.
 
-## Public methods
-
-Native sample-clock sequencing, stereo chorus/delay/reverb and optional creative saturation are available through the native APIs. New processing starts disabled. See the [transport and processing contract](documentation/api.md#native-sequence-transport).
-
-The object interface separates reusable definitions from each execution. All execution overrides are flat; `Sound.set()` accepts nested `sound`/`playback` changes. Sound and `setProcessing()` configuration errors throw, while operational rejection returns `false`. Native global controls keep their Boolean validation results. See [returns, lifetime and validation](documentation/sound-api.md#interpretations-and-returns).
-
-| Method | Returns | Purpose |
-| --- | --- | --- |
-| `getContract()` | Object | Module version, object interface units and allowlists |
-| `createSound({ name, sound, playback })` | Sound | Validated reusable definition without allocating a voice |
-| `Sound.play(changes)` | Boolean or playback control | Finite attack, chord, repetition, pattern or held execution |
-| `Sound.noteOn(changes)` | Note or false | Single held note with independent `update()` and `noteOff()` |
-| `Sound.set({ sound, playback })` | nothing | Atomic deep merge for future executions; arrays replace |
-| `Sound.getPreset()` | Object | Detached authored definition, retaining inferred versus explicit type |
-| `setProcessing(options)` | Boolean | Shared effects; delay `time` and reverb `decay` use milliseconds |
-| `setTempo(bpm)` / `setVolume(volume)` | Boolean | Scalar global controls; previous dictionaries remain supported |
-
-A repetition control has `update()` and `stop()`. A pattern also has `getState()` and an `end` event containing only `{ reason }`. Controls expose no native identifiers. Their generation ends at shutdown; reusable Sounds survive it. An end event indicates transport retirement, not audible silence.
-
-The earlier methods and `sequenceend` event below retain their existing arguments, validation and return values. Use the object interface for new code.
-
-| Method                  | Returns   | What it does                                                                                             |
-| ----------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `getStats()`            | `Object`  | Returns basic counters and enabled diagnostics; see the [stats contract](documentation/api.md#getstats). |
-| `resetStats()`          | nothing   | Resets accumulated statistics without stopping sounds.                                                   |
-| `enableStats()` / `disableStats()` | `Boolean` | Enables/disables optional timing and signal measurements (off by default).                                        |
-| `getDefaults()`         | `Object`  | Reports the API version, defaults, limits, profiles and waveform constants.                              |
-| `start(options)`  | `Boolean` | Opens the native stream and fixes its voice capacity and mixing profile.                                 |
-| `noteOn(options)`      | `Boolean` | Starts an identified sustained voice; see [sustained notes](documentation/api.md#noteonoptions). |
-| `noteOff(options)`     | `Boolean` | Begins the identified voice’s release from its current level. |
-| `updateNote(options)` | `Boolean` | Ramps compatible active-voice parameters over 10 ms without retriggering. |
-| `playTone(options)`     | `Boolean` | Plays one finite pitch.                                           |
-| `repeatTone({ intervalMs, ...recipe })` | positive ID or 0 | Repeats the original finite tone on the native sample clock. |
-| `updateTone({ toneId, ...changes })` | `Boolean` | Edits future attacks of an accepted repetition. |
-| `stopTone({ toneId })` | `Boolean` | Cancels future attacks; admitted tones finish. |
-| `playChord(options)`    | `Boolean` | Starts 1 to 32 pitches as one atomic event.                                                              |
-| `playSequence(options)` | positive ID or 0 | Publishes an independent sample-clock sequence. |
-| `setTempo({ bpm })` | `Boolean` | Changes global musical tempo, preserving position. |
-| `updateSequence({ sequenceId, ...changes })` | `Boolean` | Publishes an atomic transport edit without restarting. |
-| `stopSequence({ sequenceId })` | `Boolean` | Stops transport and releases only its voices. |
-| `getSequenceState({ sequenceId })` | `Object` or `null` | Reports applied step, musical position, tempo and revision. |
-| `setMasterProcessing(options)` | `Boolean` | Configures fixed input gain, stereo effects and optional saturation. |
-| `setVolume(options)`    | `Boolean` | Changes the master level with a short ramp.                                                              |
-| `stopAll()`             | nothing   | Stops every sequence, fades sounding voices and clears effect histories.                                                       |
-| `shutdown()`            | nothing   | Stops the stream, cancels pending pattern steps and frees resources.                                     |
-
-The earlier Boolean methods return `true` when accepted. A `false` result means the payload was rejected, the engine is not running, the stream could not open, or the command queue was full.
-
-Use `updateNote({ voiceId, ...changes })` for held-note edits. `updateVoice` remains a deprecated equivalent alias. `setStatsEnabled(boolean)` is a deprecated equivalent of `enableStats()`/`disableStats()`. Both aliases remain available without repeated runtime warnings or a scheduled removal date.
-
-## Sustained voices, musical transport and effects
-
-The examples in this section use the supported earlier interface. The [Sound reference](documentation/sound-api.md) shows equivalent object-based ownership without changing native rendering.
-
-A held key plays a timbre at the key's pitch until the app releases it. A complete effect also includes its original frequencies, timed sweeps, layers and attack pattern. Reusing only its base waveform does not reproduce that recipe. See [instruments, sound effects and complete sequences](documentation/instruments-and-effects.md) for separate workflows, examples and capacity/gain guidance.
-
-| Feature | What you can build | Start here |
-| --- | --- | --- |
-| `noteOn`, `noteOff`, `updateNote` | Playable keys, a held game motor, drones and final fanfare chords; compatible live controls ramp over 10 ms. | [Held voice ownership](documentation/guide.md#hold-and-edit-a-voice) |
-| `playSequence`, `updateSequence`, `stopSequence`, `getSequenceState` | Beat or millisecond timing, step chords, rests, gates, swing and arpeggios, up to 512 steps. | [Musical transport](documentation/guide.md#choose-the-musical-transport) |
-| `setMasterProcessing` | Stereo chorus, free/synced ping-pong delay and damped stereo reverb; optional creative saturation. | [Master effects](documentation/guide.md#add-master-effects) |
-| `modulations` on held/sequence voices | Up to two sine/triangle LFOs for filter cutoff, square PWM or sine FM, with free or tempo-synced rates. | [LFO example](documentation/examples.md#two-voice-lfos) |
-| Accumulated signal diagnostics | See brief pre-limiter peaks and limiter attenuation that happened between UI polls. | [Measure the mix](documentation/examples.md#measure-peaks-and-limiter-reduction) |
-
-The current module reports its installed version through `version` in both metadata methods. Historical released archives are unchanged. Detect the methods you need and rebuild the app with matching Android/iOS packages. The [guide](documentation/guide.md#detect-required-capabilities) shows feature detection. Timed playback remains available through its existing methods.
-
-The initial module state is `inputGain: 1`, all four master processors disabled and no additional voice LFOs. Apps enable each effect explicitly. These features are available to every Titanium consumer, including games. Select processed categories with `applyTo`; an explicit per-voice `effectSend` overrides category selection. Music, effects, UI and ambience share one effects chain and one final limiter. Turning them off drains their tails; `stopAll()` performs panic and clears effect histories. Saturation changes timbre and remains separate from final limiter protection.
-
-```javascript
-if (typeof synth.playSequence !== 'function' ||
-    typeof synth.setMasterProcessing !== 'function') {
-  throw new Error('Install the official TiSynthEngine packages and rebuild')
-}
-if (!synth.setMasterProcessing({ reverb: { enabled: true, decay: 1.1, mix: 0.12 } })) {
-  throw new Error('Reverb configuration rejected')
-}
-synth.setTempo({ bpm: 110 })
-if (!synth.playSequence({ loop: false,
-  voice: { waveType: contract.waveTypes.TRIANGLE, volume: 0.3, release: 180 },
-  steps: [{ notes: [60] }, { notes: [64] }, { notes: [67] }, { notes: [60, 64, 67] }] })) {
-  synth.shutdown()
-  throw new Error('Sequence publication rejected')
-}
-```
-
-The engine owns each note start and release; JavaScript need not trigger the steps. A sequence step uses MIDI numbers, while `playTone`, `playChord` and `noteOn` accept note-name strings. A positive sequence ID means accepted publication, not that the audio callback already applied it. See the [API](documentation/api.md#native-sequence-transport) for edits, cancellation and state polling, and [technical validation limits](documentation/audio-engine.md#native-transport-and-processing) before sizing a realtime workload.
-
-## Strict options
-
-Option dictionaries are closed contracts. A misspelled or unsupported key is rejected with `reason=unsupported_option`. Values with the wrong type, `NaN`, `Infinity` or an out-of-range number are also rejected. Explicit values are never clamped.
-
-```javascript
-synth.playTone({ note: 'C4', duraton: 200 })
-// false; "duraton" is not a supported option
-```
-
-When a validation failure emits a structured diagnostic, it uses this form in logcat or the Xcode console:
-
-```text
-event=validation_warning method=playTone key=duraton reason=unsupported_option action=rejected value=200
-```
-
-Warnings are deduplicated by method, key and reason so a bad call in a loop does not flood the log. Some transport and control failures return rejection without a structured warning; always check the return value. The [API reference](documentation/api.md) lists accepted options and rejection reasons.
-
-## Notes and frequencies
-
-`playTone` accepts either `note` or `frequency`. Do not send both.
-
-```javascript
-synth.playTone({ note: 'F#4' })
-synth.playTone({ note: 'Sib3' })
-synth.playTone({ frequency: 523.25 })
-```
-
-Note names accept English letters and solfège names. Accidentals use `#` or a lowercase `b`. Octave 4 is assumed when the octave is omitted. `A4` is 440 Hz and the other notes use twelve-tone equal temperament.
-
-The frequency range starts at 1 Hz. Its upper bound is 45 percent of the current sample rate. Read `getDefaults().limits.frequency.max` after starting the engine if the app validates user input.
-
-## Waveforms
-
-Use the constants returned by `getDefaults()` instead of duplicating numbers:
-
-```javascript
-var WAVE = synth.getDefaults().waveTypes
-
-synth.playTone({ note: 'C4', waveType: WAVE.SINE })
-synth.playTone({ note: 'C4', waveType: WAVE.SQUARE })
-synth.playTone({ note: 'C4', waveType: WAVE.SAWTOOTH })
-synth.playTone({ note: 'C4', waveType: WAVE.TRIANGLE })
-synth.playTone({
-  note: 'C4',
-  waveType: WAVE.WAVETABLE,
-  waveTable: [-1, -0.4, 0.2, 1, 0.5, -0.2]
-})
-synth.playTone({
-  frequency: 200,
-  waveType: WAVE.NOISE,
-  duration: 90,
-  attack: 1,
-  release: 75
-})
-```
-
-| Constant    | Value | Character                                                 |
-| ----------- | ----: | --------------------------------------------------------- |
-| `SINE`      |   `0` | Pure fundamental; useful for clean pitches and low notes. |
-| `SQUARE`    |   `1` | Hollow, bright and suited to retro sounds.                |
-| `SAWTOOTH`  |   `2` | Dense harmonic spectrum with a buzzy edge.                |
-| `TRIANGLE`  |   `3` | Softer than square, with more body than sine.             |
-| `NOISE`     |   `4` | White or sample-and-hold noise for hits and texture.      |
-| `WAVETABLE` |   `5` | A repeating stepped table supplied by the caller.         |
-
-Square and sawtooth use PolyBLEP band-limiting. Noise is unpitched, so its `frequency` value does not change the sound. `WAVETABLE` requires `waveTable` with 2 to 64 values from -1 to 1. Its stepped lookup can add digital grain even when the table contains sine samples; the character changes with pitch. This is distinct from clipping or an enabled saturation effect. See [rough wavetable sound](documentation/troubleshooting.md#a-wavetable-sounds-rough).
-
-## Wave-shaping controls
-
-Optional shaping controls include variable-rate sample-and-hold noise, a per-voice low-pass filter, variable pulse width, custom wavetables and amplitude quantization. These controls are disabled by default.
-
-```javascript
-synth.playTone({
-  frequency: 120,
-  duration: 700,
-  attack: 1,
-  release: 500,
-  waveType: WAVE.NOISE,
-  noiseRate: 12000,
-  noiseRateEnd: 700,
-  lowPassHz: 2800,
-  bitDepth: 8
-})
-```
-
-`noiseRate` changes white noise into sample-and-hold noise at the requested update rate. `noiseRateEnd` sweeps that rate over the event. Zero keeps the original white-noise behavior or disables the sweep.
-
-`lowPassHz` enables a per-voice one-pole low-pass filter. `bitDepth` quantizes amplitude from 2 to 16 bits; zero leaves the signal unquantized.
-
-Square waves also accept `pulseWidth` from 0.05 to 0.95 and an optional `pulseWidthEnd` sweep:
-
-```javascript
-synth.playTone({
-  note: 'A3',
-  duration: 650,
-  waveType: WAVE.SQUARE,
-  pulseWidth: 0.12,
-  pulseWidthEnd: 0.82,
-  release: 180
-})
-```
-
-These controls are available on `playTone`, in sequence `voice` and step `overrides`, and as fixed values on `playChord`. Chords do not accept sweep fields.
-
-## Envelopes
-
-Every note has an attack, an implicit full-level middle section and a release. `duration` includes all three.
-
-```javascript
-synth.playTone({
-  note: 'C4',
-  duration: 1000,
-  attack: 200,
-  release: 400
-})
-```
-
-That sound rises for 200 ms, holds for 400 ms and fades for 400 ms.
-
-Explicit envelopes must fit. `attack` must be shorter than `duration`, and `release` cannot exceed the time left after attack. Defaults are shortened when a very short duration needs it, but values supplied by the caller are rejected instead of rewritten.
-
-Add `decay` and `sustain` for sounds that start loud and settle, such as plucks, keys and bells. The level falls from full scale to `sustain` over `decay` milliseconds, then holds until the release:
-
-```javascript
-synth.playTone({ note: 'E4', duration: 900, attack: 2, decay: 260, sustain: 0.18, release: 380 })
-```
-
-`sustain` below 1 needs a `decay`, and `attack` plus `decay` must fit in `duration`.
-
-## Panning, sweeps and vibrato
-
-`pan` runs from `-1` on the left to `1` on the right. `panEnd` moves the note across the stereo field during its lifetime:
-
-```javascript
-synth.playTone({
-  frequency: 440,
-  duration: 1800,
-  pan: -1,
-  panEnd: 1
-})
-```
-
-The same event can sweep pitch and add vibrato. `lfoFreq` is the vibrato rate and `lfoDepth` is its pitch deviation in Hz:
-
-```javascript
-synth.playTone({
-  frequency: 180,
-  frequencyEnd: 1100,
-  duration: 420,
-  waveType: WAVE.SAWTOOTH,
-  lfoFreq: 5,
-  lfoDepth: 8
-})
-```
-
-The [sound design guide](documentation/sound-design.md) explains how these controls change the result and includes tested recipes.
-
-## Filter, FM and detune
-
-`filterType` adds a resonant 12 dB per octave filter: `lowpass`, `highpass` or `bandpass`. `filterQ` sets the resonance and `filterHzEnd` sweeps the cutoff exponentially:
-
-```javascript
-synth.playTone({
-  note: 'A2', duration: 1000, waveType: WAVE.SAWTOOTH,
-  filterType: 'bandpass', filterHz: 350, filterHzEnd: 2400, filterQ: 5
-})
-```
-
-`fmDepth` turns a sine into a two-operator FM voice. `fmRatio` is the modulator frequency as a multiple of the carrier, and `fmDepthEnd` moves the index over the note, so bells and electric pianos start bright and mellow out:
-
-```javascript
-synth.playTone({
-  note: 'C5', duration: 2600, decay: 2000, sustain: 0.02,
-  fmRatio: 3.5, fmDepth: 4, fmDepthEnd: 0
-})
-```
-
-`detune` shifts a pitch in cents. A chord takes `detunes`, one offset per note, so repeated pitches beat and thicken:
-
-```javascript
-synth.playChord({
-  notes: ['A3', 'A3', 'E4', 'E4'], detunes: [-8, 8, -8, 8],
-  duration: 2000, waveType: WAVE.SAWTOOTH
-})
-```
-
-Tones and pattern steps take every one of these keys. Chords take them as fixed values, use `detunes` instead of `detune`, and have no `*End` sweeps. The [API reference](documentation/api.md#expressive-controls) lists the ranges and the rules that tie the keys together.
-
-## Chords and polyphony
-
-Use `playChord` when notes belong to one simultaneous musical or sound-design event:
-
-```javascript
-synth.playChord({
-  notes: ['C3', 'G3', 'C4', 'E4'],
-  duration: 2600,
-  attack: 500,
-  release: 1000,
-  waveType: WAVE.TRIANGLE,
-  volume: 0.55,
-  pans: [-0.7, -0.2, 0.2, 0.7]
-})
-```
-
-The command is atomic. The render thread sees the complete chord or none of it, even if the queue is nearly full. The mixer also knows the chord's voice count and applies constant-power gain.
-
-Separate `playTone` calls are independent events. They are appropriate for unrelated touches or collisions, but several of them can produce a hotter sum than the same notes in one chord.
-
-`maxVoices` sets voice capacity without changing volume. Timed-only pools replace the voice with the least time remaining. Sustained/transport replacement prefers releasing voices, then the oldest attack; every replacement has a short fade tail. Optional priority 0-3 selects the lowest eligible victims first. A chord is admitted or dropped as a whole; no voices are reserved.
-
-## Sequences
-
-Use one native sample clock for successive sounds. Beats follow the global tempo; millisecond sequences retain fixed times. Steps support chords, duplicates, rests, variable intervals, independent note lengths and sound overrides.
-
-```javascript
-synth.setTempo({ bpm: 112 })
-var sequenceId = synth.playSequence({
-  stepDuration: 0.5, swing: 0.12, bus: 'music',
-  voice: { waveType: WAVE.SQUARE, volume: 0.55 },
-  steps: [{ notes: [60] }, { notes: [64], overrides: { pan: -0.4, panEnd: 0.4 } },
-    { rest: true }, { notes: [67], duration: 1, length: 0.8 }]
-})
-if (sequenceId === 0) throw new Error('Sequence rejected')
-// Stop this owner without affecting unrelated voices:
-synth.stopSequence({ sequenceId: sequenceId })
-```
-
-Start with `maxSequences: 4` for up to four independent sequences. Sequence identifiers never repeat during the module lifetime. Completion/stop emits `sequenceend` with `{ sequenceId, reason: 'completed' | 'stopped' }` outside the callback. See the [full contract](documentation/api.md#native-sequence-transport).
-
-## Binaural headphone positioning
-
-Send `spatialX` (left/right) and `spatialY` (below/above), each from -1 to 1, on a tone, chord or sequence voice. Either coordinate enables binaural; omit both for ordinary stereo. Never combine them with `pan`, `panEnd`, `pans` or `panSpread`, including inherited voice fields. Timed events keep their position; spatial held voices can be updated smoothly.
-
-Use stereo headphones and broadband noise to compare height. This is a front plane with two-channel output, without rear sources or head tracking. The [integration guide](documentation/guide.md#integrate-binaural-in-a-2d-app) covers app switches and coordinate conversion; the [interactive example](example/README.md#headphone-positioning) offers nine positions and a stereo comparison.
-
-## Engine statistics
-
-`getStats()` reads counters without resetting them. `enableStats()` enables optional callback timing and signal meters; `resetStats()` clears accumulated statistics without stopping playback. Diagnostics default off. Display `null` as unavailable or unmeasured so it remains distinct from zero.
-
-See the [integration and cleanup recipe](documentation/guide.md#read-engine-statistics) and [statistics field reference](documentation/api.md#getstats). Render load measures callback work; it does not measure total app CPU.
-
-## Mixing profiles
-
-The profile is chosen in `start()` and stays fixed until `shutdown()`.
-
-| Profile        | Sine voice gain | Limiter ceiling | Good fit                                                        |
-| -------------- | --------------: | --------------: | --------------------------------------------------------------- |
-| `conservative` |           0.440 |            0.85 | General use and polyphony.                                      |
-| `balanced`     |           0.622 |            0.85 | Mostly one or two voices when more level is needed.             |
-| `speakerSafe`  |           0.311 |            0.70 | Small speakers, low pitches or device-side acoustic distortion. |
-| `raw`          |           1.000 |            0.85 | App-managed gain staging and controlled tests.                  |
-
-Protected profiles calibrate waveform RMS and divide chord gain by the square root of its voice count. A stereo-linked sample-peak protector immediately reduces peaks above the ceiling, adding no sample retention. Gain recovers with a 100 ms exponential constant and resets after two consecutive quiet stereo frames (≤1e-12), preserving recovery across isolated zero crossings. An unattenuated mix below the ceiling is unchanged; deliberate overload changes its waveform.
-
-Start with `conservative`. If a small phone speaker sounds harsh while headphones remain clean, try `speakerSafe` and raise low pitches before adding more limiting.
-
-## Master volume
-
-`setVolume({ volume })` scales the whole mix and ramps changes linearly over 10 ms on both platforms, starting on the next processed sample and reaching the destination exactly. Values up to 2 are accepted, though values above 1 make limiting more likely.
-
-## Audio route changes
-
-Connecting or disconnecting an output may cut the note crossing the hardware transition. Android reopens its Oboe stream and iOS resumes `AVAudioEngine`; later notes continue on the new route. See [troubleshooting](documentation/troubleshooting.md#audio-changes-after-connecting-headphones) if later notes remain silent.
 
 ## More documentation
 
-- [Getting started guide](documentation/guide.md)
-- [API reference](documentation/api.md)
-- [Sound design guide](documentation/sound-design.md)
-- [Copyable examples](documentation/examples.md)
-- [Audio engine internals](documentation/audio-engine.md)
-- [Recommendations](documentation/recommendations.md)
-- [Troubleshooting](documentation/troubleshooting.md)
+- [Sound reference](documentation/sound-api.md): methods, properties, controls, validation and units.
+- [Guide](documentation/guide.md) and [examples](documentation/examples.md): application integration.
+- [Instruments and effects](documentation/instruments-and-effects.md): choose the intended playback behavior.
+- [Sound design](documentation/sound-design.md): oscillators, envelopes, filters and recipes.
+- [Audio engine](documentation/audio-engine.md): rendering, output protection and platform details.
+- [Troubleshooting](documentation/troubleshooting.md): rejection, silence and glitches.
+- [Interactive example](example/README.md): build and device checklist.
 
 ## Validation and performance
 
-Release 1.0.0 has real Android builds for all four listed ABIs and Apple builds for device, simulator and Catalyst. The own-Apple renderer was compared byte-for-byte with its frozen reference across 120 scenarios, five sample rates from 16 to 192 kHz, and short, irregular and 1024-frame blocks. Audio and original semantic state matched. These Apple results compare the Apple renderer with its own reference; they do not claim sample equality between Android and iOS.
+The [Sound validation report](documentation/sound-api-validation.md) records within-platform acoustic comparisons and bounded performance/memory tests, including unresolved results. The [validation archive](docs/validation/README.md) preserves source-specific measurements. Historical measurements describe the revisions that produced them; they do not certify every device, route or workload.
 
-Full-score publication and control-memory improvements are retained. The experimental Apple FIR/cache/idle-effects bundle was removed after physical 32-voice stereo timing regressed. Production iOS retains its original renderer. No buffer increase, added latency or reduction in voices, effects or quality was used to improve a result.
-
-| Evidence | What it establishes | What remains open |
-| --- | --- | --- |
-| Native builds and contract/renderer checks | Build coverage, accepted payloads and the recorded own-platform audio/state comparisons | Hardware timing and audible output require device checks |
-| Android and iPad game runs | Approximately 60 FPS in the measured Sim20 and Sim80 scenarios | Strict iPad population-matched comparison remains inconclusive; occasional Android Sim80 output underruns persist |
-| Physical load and memory tests | Recorded callback deadlines, bounded recovery checks and compact 48 kHz memory measurements | The extreme Android load fails feasibility; physical 192 kHz memory/output and full listening certification remain open |
-
-Read the [performance review](docs/validation/performance-review.json) for accepted, rejected and pending candidates, and the [raw evidence archive](docs/validation/performance-review-evidence.zip) for reproducibility. Host CPU measurements are not whole-app CPU measurements or promises of the same gain on a device. The [statistics guide](documentation/stats-performance.md) explains how to interpret the counters.
+Diagnostics are optional. `getStats()` returns counters and available measurements; keep unmeasured values as `null`. Render load measures callback work, not whole-app CPU. See [statistics and measurement limits](documentation/stats-performance.md).
 
 ## Build and test
 
-The [Android notes](android/README.md), [iOS notes](ios/README.md) and [audio engine guide](documentation/audio-engine.md#regression-coverage) contain the build and host-test commands.
+Build each platform from its directory with the Titanium CLI. Host and native contract checks are documented in the platform READMEs and `.github/workflows/tests.yml`. Run checks appropriate to the changed behavior. Build and reinstall consumer apps after replacing native binaries.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The Android module bundles Oboe under the Apache License 2.0; see [third-party notices](documentation/third-party-notices.md).
+MIT. Binaural HRTF data and other bundled components have their own attribution requirements; see [third-party notices](documentation/third-party-notices.md).

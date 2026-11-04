@@ -2,11 +2,30 @@
 
 `variation` lets the engine choose bounded parameter values when it admits an attack. Repeated shots can have different pitch, noise color or filter settings without JavaScript randomization. Each voice keeps the chosen values for its lifetime; existing envelopes, sweeps and LFOs continue from that starting configuration.
 
-Android and iOS support this dictionary in TiSynth 2.0.0 and the earlier 1.1.0 packages. The variation data schema is `1`. The published 1.0.2 packages do not accept it.
+Android and iOS support this dictionary in TiSynth 2.0.0. The variation data schema is `1`. Store it in `sound.variation`; a pattern step can supply `steps[i].sound.variation`.
+
+## Reuse a sound with variation
+
+```javascript
+var synth = require('ti.synthengine')
+var bell = synth.createSound({
+  sound: {
+    waveType: synth.getContract().waveTypes.SINE,
+    volume: 0.25, attack: 5, release: 120,
+    variation: { amount: 0.6, ranges: { volume: [0.18, 0.25], pitchCents: [-8, 8] } }
+  },
+  playback: { type: 'tone', notes: ['A4'], duration: 400 }
+})
+
+bell.play()
+bell.play({ notes: ['C5'] })
+```
+
+Call playback after engine startup. The detailed native dictionaries below explain source restrictions and inheritance. For Sound patterns, root variation belongs in `sound.variation` and a step replacement belongs in `steps[i].sound.variation`.
 
 ## Select the module version
 
-Install the matching Android and iOS 2.0.0 candidate archives in the app and select them in `tiapp.xml`:
+Install the matching Android and iOS 2.0.0 archives in the app and select them in `tiapp.xml`:
 
 ```xml
 <modules>
@@ -274,7 +293,7 @@ Also check pitch corners near 1 Hz or the reported ceiling. A valid base pitch c
 
 Studio calls this control Variantes. Its displayed percentage maps linearly: 25% sends native amount `0.25`, 50% sends `0.5`, and 100% sends `1`. Studio prepares broader ranges for its editor. The games retain their authored range profiles.
 
-Frontier automatically applies authored ranges only to its eligible destruction sounds; Guardian applies them only to its two lasers. Both require the capability/schema pair and keep their existing recipes on older modules. Studio allows any source to opt in through compatible parameter ranges. See [Studio's control and preset guide](https://github.com/macCesar/TiSynth-Studio/blob/main/documentation/variation.md); the native contract in this document does not depend on a consumer app.
+Frontier automatically applies authored ranges only to its eligible destruction sounds; Guardian applies them only to its two lasers. Both require the capability/schema pair. Studio allows any source to opt in through compatible parameter ranges. See [Studio's control and preset guide](https://github.com/macCesar/TiSynth-Studio/blob/main/documentation/variation.md); the native contract in this document does not depend on a consumer app.
 
 ## Implementation and verification
 

@@ -2,7 +2,7 @@
 
 This folder contains the iOS implementation of `ti.synthengine` 2.0.0. The public API is documented in the root [README](../README.md) and the [API reference](../documentation/api.md).
 
-TiSynth 2.0.0 exposes the same public methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [capability detection](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each positive sequence ID for edits, stopping and state queries. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use matching 2.0.0 candidate packages. The module has one version, returned as `version` by both metadata methods; published historical packages remain unchanged. Rebuild consumer apps after replacing a native binary.
+TiSynth 2.0.0 exposes the same public methods on both platforms. Effects and extra LFOs are opt-in; input gain starts at unity. See [capability detection](../documentation/guide.md#detect-required-capabilities) and [copyable examples](../documentation/examples.md#sustained-game-motor). Use `start({ maxSequences: 4 })` for up to four independent native sequences. Retain each pattern control for edits, stopping, state queries and its `end` event. `setTempo` controls beat sequences and synchronized effects; millisecond sequences keep fixed times. Categories (`music`, `effects`, `ui`, `ambience`), explicit sends and optional priority share one renderer and one effects chain. Use matching 2.0.0 packages. The module has one version, returned as `version` by both metadata methods. Rebuild consumer apps after replacing a native binary.
 
 ## Runtime
 
@@ -29,6 +29,6 @@ Build the distributable module with the Titanium CLI from `ios/`. The expected a
 Binaural HRTF data: copyright 1994 MIT Media Laboratory, measured by Bill Gardner and Keith Martin. Use is permitted with attribution. See [MIT KEMAR](https://sound.media.mit.edu/resources/KEMAR.html) and the module's third-party notices.
 
 
-## Version 2.0.0 candidate
+## Sound interface
 
-The current source adds reusable Sound definitions and owned playback controls while retaining the direct playback methods. Read the [Sound reference](../documentation/sound-api.md). Native repetition, variation, processing and audio timing remain available. This candidate is not a published release.
+Create reusable Sound definitions with `createSound({ sound, playback })`, then call `sound.play()` or `sound.noteOn()`. Read the [Sound reference](../documentation/sound-api.md). Native repetition, variation, processing and audio timing remain available.

@@ -17,6 +17,11 @@ const publicFiles = [
   'documentation/guide.md',
   'documentation/api.md',
   'documentation/sound-api.md',
+  'documentation/upgrade-2.0.0.md',
+  'documentation/audio-engine-validation.md',
+  'documentation/instruments-and-effects.md',
+  'documentation/releases/2.0.0-android.md',
+  'documentation/releases/2.0.0-ios.md',
   'documentation/native-variation.md',
   'documentation/native-variation-validation.md',
   'documentation/examples.md',
@@ -122,6 +127,18 @@ for (const relativePath of publicFiles) {
   checkLinks(relativePath, source)
   checkJavaScriptFences(relativePath, source)
 }
+
+for (const file of ['README.md', 'android/README.md', 'ios/README.md',
+  'documentation/index.md', 'documentation/guide.md', 'documentation/api.md',
+  'documentation/sound-api.md', 'documentation/examples.md',
+  'documentation/native-variation.md', 'documentation/sound-design.md',
+  'documentation/instruments-and-effects.md', 'documentation/audio-engine.md',
+  'documentation/troubleshooting.md']) {
+  assert(!/\bapiVersion\b|(?<![\d.])1\.[01]\.[012](?![\d.])/.test(read(file)),
+    file + ' presents obsolete module metadata or a 1.x contract')
+}
+const readme = read('README.md')
+assert(readme.indexOf('createSound') < readme.indexOf('## Requirements'), 'README opens with reusable sounds')
 
 const apiDoc = read('documentation/api.md')
 const guideDoc = read('documentation/guide.md')
@@ -252,8 +269,17 @@ for (const [heading, constant] of [['Sound properties', 'SOUND_KEYS'], ['Playbac
   assert(declaration, constant + ' has an authoritative allowlist')
   assert.deepStrictEqual(documentedKeys(table.split('\n### ')[0]), declaration[1].split(' ').sort(), heading + ' matches shared API')
 }
+const currentExamples = [read('README.md').split('## Start after layout')[0],
+  read('documentation/releases/2.0.0-android.md'), read('documentation/releases/2.0.0-ios.md')]
+for (const [file, headings] of [
+  ['documentation/guide.md', ['Hold and edit a voice', 'Choose the musical transport', 'Play the first sound']],
+  ['documentation/examples.md', ['Reuse a sound with different notes', 'Hold a note and release its control', 'Repeat finite attacks']],
+  ['documentation/native-variation.md', ['Reuse a sound with variation']]
+]) {
+  for (const heading of headings) currentExamples.push(read(file).split('## ' + heading + '\n')[1].split('\n## ')[0])
+}
 let modernExamples = 0
-for (const match of modern.matchAll(/```javascript\s*\n([\s\S]*?)```/g)) {
+for (const match of (modern + '\n' + currentExamples.join('\n')).matchAll(/```javascript\s*\n([\s\S]*?)```/g)) {
   let serial = 0
   const requests = []
   const native = {
@@ -276,11 +302,11 @@ for (const match of modern.matchAll(/```javascript\s*\n([\s\S]*?)```/g)) {
     enableStats: () => true, disableStats: () => true, getStats: () => ({ activeVoices: 0 })
   }
   Object.assign(native, sharedApi)
-  vm.runInNewContext(match[1], { synth: native, require: name => { assert.strictEqual(name, 'ti.synthengine'); return native }, Ti: { API: { info() {} } } },
+  vm.runInNewContext(match[1], { synth: native, contract: native.getContract(), WAVE: native.getDefaults().waveTypes, require: name => { assert.strictEqual(name, 'ti.synthengine'); return native }, Ti: { API: { info() {} } } },
     { filename: 'documentation/sound-api.md#example-' + (++modernExamples) })
   assert(requests.length > 0, 'object API example exercises the shared compiler')
 }
-assert.strictEqual(modernExamples, 6, 'all documented object API examples execute')
+assert.strictEqual(modernExamples, 19, 'Sound reference, README, release and current guide examples execute')
 function score(file, heading) {
   const section = read(file).split(heading + '\n')[1]
   assert(section, heading)

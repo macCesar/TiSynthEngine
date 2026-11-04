@@ -315,7 +315,7 @@ Different phones have different sample rates, speaker protection and acoustic re
 
 ## Recipes
 
-These recipes use only the 1.0.0 contract and keep explicit envelopes valid. Adjust pitch and volume to fit the app's other audio; the recipe values are starting points, not mastering targets.
+These recipes use the supported direct native parameter contract and keep explicit envelopes valid. Reusable definitions put synthesis fields in `sound` and pitches/timing in `playback`; see the [Sound interface](sound-api.md). Adjust pitch and volume to fit the app's other audio; the recipe values are starting points, not mastering targets.
 
 ### Interface click
 

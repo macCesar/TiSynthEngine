@@ -56,14 +56,14 @@ if (actual !== '2.0.0') {
 }
 ```
 
-`version` is the installed module version in both `getDefaults()` and `getContract()`. TiSynth has no independent API version. Pin both entries in `tiapp.xml` to the intended module version and rebuild the app so Titanium includes the new archive. For this candidate, the directories are:
+`version` is the installed module version in both `getDefaults()` and `getContract()`. TiSynth has no independent API version. Pin both entries in `tiapp.xml` to the intended module version and rebuild the app so Titanium includes the new archive. For 2.0.0, the directories are:
 
 ```text
 modules/android/ti.synthengine/2.0.0/
 modules/iphone/ti.synthengine/2.0.0/
 ```
 
-Check the required methods and capability/schema pair before using variation. For binaural, inspect `getDefaults().limits.spatialX` and `.spatialY`. Copying a package does not update an installed app: rebuild and reinstall it. Historical released archives retain their original metadata; this cleanup applies to the 2.0.0 candidate.
+Check the required methods and capability/schema pair before using variation. For binaural, inspect `getDefaults().limits.spatialX` and `.spatialY`. Copying a package does not update an installed app: rebuild and reinstall it.
 
 ## Binaural does not change the position
 
@@ -81,7 +81,7 @@ The [integration guide](guide.md#integrate-binaural-in-a-2d-app) contains the Ja
 
 ## Statistics are missing or show `null`
 
-Older development packages can report 1.0.0 without statistics methods. Check `typeof synth.getStats`, `typeof synth.enableStats`, `typeof synth.disableStats` and `typeof synth.resetStats`; install the current packages, rebuild and reinstall the app if needed.
+The 2.0.0 module includes statistics methods. Check `typeof synth.getStats`, `typeof synth.enableStats`, `typeof synth.disableStats` and `typeof synth.resetStats`; install the current packages, rebuild and reinstall the app if needed.
 
 Basic voice/queue/rejection counters do not require diagnostics. Timing, output peak/RMS and limiter reduction require `enableStats()` and a measured callback/window. `null` means unmeasured or unavailable; keep it distinct from zero. The current iOS backend always reports `null` for underruns, output buffer size and estimated hardware latency. Android backend metrics are best-effort and independent of the diagnostic switch.
 
@@ -164,7 +164,7 @@ If later sounds remain silent, capture the Android or Xcode log around the route
 - Confirm the deployment target is iOS 15 or newer.
 - Check whether another module changes `AVAudioSession` after startup.
 - Test interruptions, phone calls, Bluetooth and route changes on hardware.
-- Use the matching device or simulator slice from the 1.1.0 archive.
+- Use the matching device or simulator slice from the 2.0.0 archive.
 
 ## What to include in a bug report
 
@@ -172,7 +172,7 @@ Include the platform, OS version, device model, Titanium SDK version, module ver
 
 ## Held notes, sequences or effects methods are missing
 
-Historical 1.0.2 packages provide `updateVoice`; later packages also provide `updateNote`. TiSynth 2.0.0 recommends owned Sound controls. Detect `noteOn`/`noteOff`/`updateNote`, all four sequence methods and `setMasterProcessing` according to the feature needed. Install matching current Android/iOS packages, rebuild and reinstall the consumer app. A stale development binary may report the same version without the complete release API. See [capability detection](guide.md#detect-required-capabilities).
+Use `createSound()` and its returned playback controls for held notes, repetitions and patterns. Detect `noteOn`/`noteOff`/`updateNote`, all four sequence methods and `setMasterProcessing` according to the feature needed. Install matching current Android/iOS packages, rebuild and reinstall the consumer app. A stale development binary may report the same version without the complete release API. See [capability detection](guide.md#detect-required-capabilities).
 
 ## A held voice does not release or update
 
@@ -206,6 +206,6 @@ Compare one note with `SINE`, at a comfortable matched level, to distinguish the
 
 ## A variation dictionary is rejected or repeats the same sound
 
-Check both `capabilities.variation === true` and `variationSchemaVersion === 1` before sending the property. Published 1.0.2 packages reject it. Source restrictions and range ordering still apply at amount zero; near the frequency ceiling, validate tuning, detune, every chord pitch and active pitch endpoints together.
+Check both `capabilities.variation === true` and `variationSchemaVersion === 1` before sending the property. Source restrictions and range ordering still apply at amount zero; near the frequency ceiling, validate tuning, detune, every chord pitch and active pitch endpoints together.
 
 Repeated standalone calls with one explicit seed reproduce the selected parameters. Omit it for independent selections, or use a native sequence to retain an advancing stream across loops. A held voice samples only at attack, and `updateNote` rejects `variation`. For a running sequence, clear an inherited root dictionary with a valid amount-zero replacement; omitting it from a revision retains the merged value. See the [complete examples and rules](native-variation.md).

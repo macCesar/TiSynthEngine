@@ -14,6 +14,59 @@ if (contract.version !== '2.0.0') {
 }
 ```
 
+## Reuse a sound with different notes
+
+```javascript
+var bell = synth.createSound({
+  sound: { waveType: WAVE.SINE, volume: 0.25, attack: 5, release: 120 },
+  playback: { type: 'tone', notes: ['A4'], duration: 400 }
+})
+
+bell.play()
+bell.play({ notes: ['C5'], volume: 0.15 })
+bell.set({ sound: { volume: 0.2 } })
+```
+
+Execution overrides leave the stored definition unchanged. `set()` validates an atomic revision for future executions. For an atomic chord, declare `playback.type: 'chord'` and supply a pitch array.
+
+## Hold a note and release its control
+
+```javascript
+var instrument = synth.createSound({
+  sound: { waveType: WAVE.TRIANGLE, volume: 0.2, attack: 8, release: 180 },
+  playback: { type: 'held', notes: ['C4'] }
+})
+
+var note = instrument.noteOn({ notes: ['E4'] })
+if (note) {
+  note.update({ notes: ['G4'], volume: 0.15 })
+  note.noteOff()
+}
+```
+
+Keep each note control with its interaction owner. On a rejected release, retain it for bounded retry or owner shutdown. A control cannot act on a restarted engine.
+
+## Repeat finite attacks
+
+```javascript
+var shot = synth.createSound({
+  sound: { waveType: WAVE.SQUARE, volume: 0.1, attack: 2, release: 40 },
+  playback: { type: 'repeat', frequencies: [880], duration: 105, interval: 150 }
+})
+
+var firing = shot.play()
+if (firing) {
+  firing.update({ interval: 120 })
+  firing.stop()
+}
+```
+
+The native clock schedules attacks. `stop()` cancels future attacks; admitted 105 ms attacks finish naturally. See [patterns](sound-api.md#patterns) for ordered scores, chords and rests, and [processing](sound-api.md#units-and-processing) for shared effects in milliseconds.
+
+## Direct native parameter examples
+
+The remaining recipes exercise the supported direct methods and their precise native parameter dictionaries. For reusable application sounds, store synthesis fields under `sound`, pitches/timing under `playback`, and use the controls above. The [Sound reference](sound-api.md) lists interpretation-specific restrictions; the [upgrade guide](upgrade-2.0.0.md) maps direct names and units.
+
 ## Start once after layout
 
 ```javascript
@@ -731,7 +784,7 @@ Call `closeMixMeter` when its owner hides or closes. Display unavailable or unme
 
 ## Bounded variation for repeated noise impacts
 
-The 1.1.0 packages choose values once per admitted attack. This example keeps the noise source and envelope fixed, varies the initial noise/filter settings, and lets the authored sweep endpoints finish unchanged. Call it for actual gameplay events after normal engine startup. For periodic repetition, pass the finite recipe to `repeatTone` with `intervalMs` and retain its positive tone ID; use `stopTone` on cancellation.
+The native engine chooses values once per admitted attack. This example keeps the noise source and envelope fixed, varies the initial noise/filter settings, and lets the authored sweep endpoints finish unchanged. Call it for actual gameplay events after normal engine startup. For periodic repetition, pass the finite recipe to `repeatTone` with `intervalMs` and retain its positive tone ID; use `stopTone` on cancellation.
 
 ```javascript
 var synth = require('ti.synthengine')

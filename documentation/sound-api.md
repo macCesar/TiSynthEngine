@@ -1,8 +1,8 @@
 # Sound objects: TiSynth 2.0.0
 
-The 2.0.0 candidate adds reusable sound definitions and independent playback controls on Android and iOS. `createSound()` allocates no voice. Its definition survives `shutdown()` and can play again after `start()`. Rendering, gain, admission limits and scheduling use the existing native tone, chord, held, repetition and sequence paths.
+TiSynth 2.0.0 provides reusable sound definitions and independent playback controls on Android and iOS. `createSound()` allocates no voice. Its definition survives `shutdown()` and can play again after `start()`. Rendering, gain, admission limits and scheduling use the existing native tone, chord, held, repetition and sequence paths.
 
-TiSynth uses one version: the installed module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`. `getContract()` additionally describes `capabilities.soundObjects: true`, supported interpretations, property names and units. There is no separate API counter or `apiVersion` field. The 2.0.0 packages are candidates, not a published release; published 1.1.0 packages do not contain this interface.
+TiSynth uses one version: the installed module version. Both `getContract().version` and `getDefaults().version` report `2.0.0`. `getContract()` additionally describes `capabilities.soundObjects: true`, supported interpretations, property names and units. The installed module has one version.
 
 ## First sound
 
@@ -104,7 +104,7 @@ if (repetition) {
 }
 ```
 
-A repetition exposes `{ update, stop }`. `interval` is integer milliseconds from 1 through 60000; it replaces the earlier `intervalMs` spelling. Each attack retains finite-tone duration, envelope and sweep semantics. An update affects the next scheduled attack without moving its existing deadline; the edited interval controls the following gap. Already admitted attacks retain their original recipe. `stop()` cancels future attacks while admitted finite attacks finish. Repetition has no end event and uses its existing capacity independently of pattern slots. Shared voice admission still applies to each attack.
+A repetition exposes `{ update, stop }`. `interval` is integer milliseconds from 1 through 60000. Each attack retains finite-tone duration, envelope and sweep semantics. An update affects the next scheduled attack without moving its existing deadline; the edited interval controls the following gap. Already admitted attacks retain their original recipe. `stop()` cancels future attacks while admitted finite attacks finish. Repetition has no end event and uses its existing capacity independently of pattern slots. Shared voice admission still applies to each attack.
 
 ## Patterns
 
@@ -130,7 +130,7 @@ if (pattern) {
 
 A pattern exposes `{ update, stop, getState, addEventListener, removeEventListener }`. The event name is `end`; its payload is `{ reason: 'completed' | 'stopped' }`, with no native identifier. A control receives completion at most once. `getState()` returns the existing applied transport state with `sequenceId` removed, or `null` when unavailable. Removing a listener requires the same function reference.
 
-Root `interval` replaces `stepDuration`. Per-step `interval` replaces the earlier step `duration`, meaning time until the next attack. `length` still controls sounding length; omitting it uses `gate`. A step contains exactly one of `notes`, `frequencies` or `rest: true`, with optional `interval`, `length`, `gate` and `sound`. Per-step `sound` replaces the previous `overrides` dictionary. Root `sound.detune` maps to the previous sequence-root `detune`, preserving its native pitch rule. Root `playback.frequencyEnd` maps to the native voice endpoint, while a per-step endpoint belongs in `steps[i].sound.frequencyEnd`.
+Root and per-step `interval` specify time until the next attack. `length` still controls sounding length; omitting it uses `gate`. A step contains exactly one of `notes`, `frequencies` or `rest: true`, with optional `interval`, `length`, `gate` and `sound`. Per-step `sound` supplies synthesis settings for that attack. Root `sound.detune` applies the pattern pitch rule. Root `playback.frequencyEnd` maps to the native voice endpoint, while a per-step endpoint belongs in `steps[i].sound.frequencyEnd`.
 
 `timeUnit` is `beats` by default or `ms`, and stays fixed during playback. Root interval defaults to 0.25 beats or 100 ms. Patterns contain up to 512 steps and 32 pitches per sounding step, with the existing swing, mode, revision and capacity rules. Updates replace arrays and preserve native revision scheduling; they do not restart transport. Pattern `stop()` remains accepted before its native slot is retired. Coalesce replacements and wait for the owned control's `end` event before publishing the next score when capacity is occupied. An `end` event marks transport retirement, not audible silence: release and processing tails may continue.
 
@@ -139,7 +139,7 @@ Root `interval` replaces `stepDuration`. Per-step `interval` replaces the earlie
 | Quantity | Unit and meaning |
 | --- | --- |
 | `sound.attack`, `decay`, `release` | Milliseconds in every interpretation |
-| Tone, chord or repetition `playback.duration` | Total milliseconds including release, as in the previous finite API |
+| Tone, chord or repetition `playback.duration` | Total milliseconds including release, including the complete finite envelope |
 | Tone or repetition `playback.frequencyEnd` | Hertz; native finite sweep endpoint |
 | Repetition `playback.interval` | Integer milliseconds, independent of global tempo |
 | Pattern root/step `interval` and step `length` | Beats or milliseconds according to the pattern's `timeUnit` |
@@ -148,7 +148,7 @@ Root `interval` replaces `stepDuration`. Per-step `interval` replaces the earlie
 | `setProcessing().delay.time` | Milliseconds, 20 through 2000 |
 | `setProcessing().reverb.decay` | Milliseconds, 200 through 8000 |
 
-Finite and pattern envelopes are different native paths. Converting an old finite total duration of 150 ms with 25 ms release to a millisecond pattern requires `length: 125` and `release: 25` to preserve that sounding lifetime; attack spacing is a separate `interval`. Do not replace grouped chords with independent tone starts or convert repetition into a sequence when preserving the original gain and envelope interpretation.
+Finite and pattern envelopes are different native paths. Converting a finite total duration of 150 ms with 25 ms release to a millisecond pattern requires `length: 125` and `release: 25` to preserve that sounding lifetime; attack spacing is a separate `interval`. Do not replace grouped chords with independent tone starts or convert repetition into a sequence when preserving the original gain and envelope interpretation.
 
 ```javascript
 synth.setProcessing({ inputGain: 1, applyTo: ['music'],
@@ -159,17 +159,17 @@ const statistics = synth.getStats()
 synth.disableStats()
 ```
 
-`setProcessing()` uses the existing shared effects chain and strict native validation. It converts delay `time` to native `timeMs` and reverb `decay` from milliseconds to seconds. The previous delay `timeMs` spelling is also accepted as a deprecated input alias, but `time` and `timeMs` cannot coexist. Reverb decay always uses milliseconds in this entry point, regardless of the delay spelling. Other chorus/delay/reverb/saturation, `inputGain` and `applyTo` fields retain the [processing reference](api.md#setmasterprocessingoptions) ranges and semantics. `setMasterProcessing()` keeps its earlier `timeMs` and seconds-based decay contract.
+`setProcessing()` uses the existing shared effects chain and strict native validation. It converts delay `time` to native `timeMs` and reverb `decay` from milliseconds to seconds. Use delay `time` and reverb `decay` in milliseconds. Other chorus/delay/reverb/saturation, `inputGain` and `applyTo` fields retain the [processing reference](api.md#setmasterprocessingoptions) ranges and semantics.
 
 `bus`, `effectSend` and `priority` belong to `sound`, including a step's `sound` where supported. Routes, sends, fixed per-event gain and chord grouping are unchanged. Sound creation does not enable diagnostics; use `enableStats()` and `disableStats()`, and retain unavailable readings as `null`.
 
-## Lifetime, errors and previous methods
+## Lifetime and errors
 
 A Sound is reusable across engine shutdown/start; a playback control is bound to the generation that created it. Shutdown invalidates old controls, which subsequently return `false` for updates/releases/stops and `null` for pattern state. They cannot affect a new execution or a reused app identifier. Stale completion/invalidation events cannot retire a new generation's pattern. Listener installation on an invalid pattern has no effect. `stopAll()` retains its global panic behavior; prefer an owned control for ordinary release or cancellation.
 
-The earlier tone, chord, held, repetition, sequence and processing entry points remain available with their existing arguments, return values, identifiers, validation and events. They are deprecated for new object-based code; there is no scheduled removal or repeated warning. Their `sequenceend` event still includes the original `sequenceId`. Both scalar and dictionary signatures of `setVolume()` and `setTempo()` remain supported. These native global controls retain Boolean rejection for invalid inputs, unlike the throwing Sound and `setProcessing()` validators. `updateVoice` stays an equivalent deprecated alias of `updateNote`, and `setStatsEnabled(boolean)` stays an equivalent deprecated alias of `enableStats()`/`disableStats()`.
+The [upgrade guide](upgrade-2.0.0.md) records method mappings and metadata changes. Global `setVolume()` and `setTempo()` return Boolean acceptance. Sound and `setProcessing()` reject invalid configurations with descriptive errors.
 
-The [TypeScript declarations](../index.d.ts) describe both interfaces. `Sound.play()` has a mixed return when the stored interpretation is not known at the call: narrow the result before calling a control method, or supply an explicit call `type`. Runtime validation remains authoritative for numeric ranges and combinations.
+The [TypeScript declarations](../index.d.ts) describe Sound definitions, controls and the supported direct methods. `Sound.play()` has a mixed return when the stored interpretation is not known at the call: narrow the result before calling a control method, or supply an explicit call `type`. Runtime validation remains authoritative for numeric ranges and combinations.
 
 ## Property allowlists
 
