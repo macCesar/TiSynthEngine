@@ -602,6 +602,11 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 }
 
 @interface TiSynthengineModule () {
+  uint64_t soundGeneration;
+  int64_t nextSoundNote;
+  BOOL soundIdentityInitialized,soundHeldCall;
+  NSMutableDictionary *legacyHeldIds;
+  NSMutableSet *claimedHeldIds;
   uint32_t variationSeed;
   uint64_t variationAttack,batchVariationAttack;
   SynthToneTransport tones;
@@ -1230,16 +1235,18 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 - (int)voiceMaskForId:(int32_t)voiceId
 {
   os_unfair_lock_lock(&commandProducerLock);
-  int result=-1;
-  for(int i=0;i<engineMaxVoices;i++){int found=synth_identity_mask(&identities[i],voiceId);if(found>=0)result=found;}
+  int current=-1,pending=-1;
+  // Read pending attacks before active identities: the callback can move an
+  // attack from the queue into a voice while this producer-side lookup runs.
   uint32_t rd=atomic_load_explicit(&commandReadIndex,memory_order_acquire),wr=atomic_load_explicit(&commandWriteIndex,memory_order_acquire);
   while(rd!=wr) {
     SynthCommand *c=&commandQueue[rd];
-    if(c->type==SYNTH_CMD_HELD_ON && c->voiceId==voiceId)result=(int)synth_live_allowed(c->waveType,c->filterType);
+    if(c->type==SYNTH_CMD_HELD_ON && c->voiceId==voiceId)pending=(int)synth_live_allowed(c->waveType,c->filterType);
     rd=(rd+1)%COMMAND_QUEUE_CAPACITY;
   }
+  for(int i=0;i<engineMaxVoices;i++){int found=synth_identity_mask(&identities[i],voiceId);if(found>=0)current=found;}
   os_unfair_lock_unlock(&commandProducerLock);
-  return result;
+  return pending>=0?pending:current;
 }
 
 - (void)applyHeldCommand:(const SynthCommand *)cmd
@@ -1743,12 +1750,119 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
   }
 }
 
+- (id)createSound
+{
+ // Kroll checks explicit getters before its create* factory. TiProxy stores
+ // the hybrid module's assigned JS function as a KrollWrapper in dynprops.
+ return [self valueForUndefinedKey:@"createSound"];
+}
+- (void)initializeSoundIdentity
+{
+ if(soundIdentityInitialized)return;
+ soundIdentityInitialized=YES;nextSoundNote=INT32_MAX;
+ legacyHeldIds=[NSMutableDictionary dictionary];claimedHeldIds=[NSMutableSet set];
+}
+- (NSNumber *)_allocateSoundNote:(id)args
+{
+ @synchronized(self) {
+  [self initializeSoundIdentity];
+  [self pruneHeldAliases];
+  while(nextSoundNote>0&&([claimedHeldIds containsObject:@(nextSoundNote)]||(audioEngine&&[self voiceMaskForId:(int32_t)nextSoundNote]>=0))) {
+   NSNumber *skipped=@(nextSoundNote--);legacyHeldIds[skipped]=skipped;[claimedHeldIds addObject:skipped];
+  }
+  if(nextSoundNote<=0)return @0;
+  return @(nextSoundNote--);
+ }
+}
+- (void)pruneHeldAliases
+{
+ if(!legacyHeldIds.count)return;
+ for(NSNumber *key in [legacyHeldIds allKeys]) {
+  NSNumber *identifier=legacyHeldIds[key];
+  if(!audioEngine||[self voiceMaskForId:identifier.intValue]<0) {
+   [claimedHeldIds removeObject:identifier];[legacyHeldIds removeObjectForKey:key];
+  }
+ }
+}
+- (int32_t)heldIdentifier:(int32_t)publicId
+{
+ if(soundHeldCall)return publicId;
+ [self initializeSoundIdentity];
+ [self pruneHeldAliases];
+ NSNumber *key=@(publicId),*known=legacyHeldIds[key];if(known)return known.intValue;
+ if(publicId<=nextSoundNote)return publicId;
+ NSNumber *identifier=[self _allocateSoundNote:nil];
+ if(!identifier.intValue)return 0;
+ [claimedHeldIds addObject:identifier];legacyHeldIds[key]=identifier;return identifier.intValue;
+}
+- (NSDictionary *)_soundRuntime:(id)args
+{
+ @synchronized(self) {return @{@"generation":@(soundGeneration),@"running":@(audioEngine!=nil)};}
+}
+- (NSNumber *)_soundNoteToMidi:(id)args
+{
+ id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+ if(![raw isKindOfClass:[NSString class]])return @(-1);
+ double frequency=ParseNoteToFrequency(raw);return frequency>0?@(lround(69+12*log2(frequency/440))):@(-1);
+}
+- (NSNumber *)_soundHeld:(id)args
+{
+ @synchronized(self) {
+  id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if(![raw isKindOfClass:[NSDictionary class]]||![raw[@"options"] isKindOfClass:[NSDictionary class]])return @NO;
+  NSDictionary *options=raw[@"options"];
+  id identifier=options[@"voiceId"];
+  if(![identifier isKindOfClass:[NSNumber class]]||[identifier doubleValue]<=nextSoundNote||[identifier doubleValue]>INT32_MAX||[claimedHeldIds containsObject:identifier])return @NO;
+  soundHeldCall=YES;
+  @try {
+   if([raw[@"operation"] isEqual:@"on"])return [self noteOn:options];
+   if([raw[@"operation"] isEqual:@"update"])return [self updateNote:options];
+   if([raw[@"operation"] isEqual:@"off"])return [self noteOff:options];
+   return @NO;
+  } @finally {soundHeldCall=NO;}
+ }
+}
+- (NSDictionary *)_validateSoundOptions:(id)args
+{
+ @synchronized(self) {
+  id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if(![raw isKindOfClass:[NSDictionary class]]||![raw[@"options"] isKindOfClass:[NSDictionary class]])return @{@"key":@"options",@"reason":@"expected_dictionary"};
+  NSDictionary *options=raw[@"options"];NSString *kind=raw[@"kind"];
+  if([kind isEqual:@"tone"])return [TiSynthengineContract validateTone:options maxFrequency:[self maxFrequencyHz]];
+  if([kind isEqual:@"chord"])return [TiSynthengineContract validateChord:options maxFrequency:[self maxFrequencyHz]];
+  if([kind isEqual:@"held"])return [TiSynthengineContract validateNoteOn:options maxFrequency:[self maxFrequencyHz]];
+  if([kind isEqual:@"heldUpdate"])return [TiSynthengineContract validateUpdateVoice:options maxFrequency:[self maxFrequencyHz]];
+  if([kind isEqual:@"repeat"])return [TiSynthengineContract validateRepeatTone:options maxFrequency:[self maxFrequencyHz]];
+  if([kind isEqual:@"pattern"]) {SynthSequenceConfig config;return [TiSynthengineContract prepareSequence:options config:&config maxFrequency:[self maxFrequencyHz]];}
+  if([kind isEqual:@"processing"]) {SynthEffectsConfig config=audioEngine?processingOptions:synth_effects_default_config();return [TiSynthengineContract prepareMasterProcessing:options config:&config];}
+  return @{@"key":@"kind",@"reason":@"unknown_interpretation"};
+ }
+}
+- (NSNumber *)_updateSoundOptions:(id)args
+{
+ @synchronized(self) {
+  id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if(![raw isKindOfClass:[NSDictionary class]]||[raw count]!=2||![raw[@"kind"] isKindOfClass:[NSString class]]||![raw[@"options"] isKindOfClass:[NSDictionary class]])return @NO;
+  NSDictionary *options=raw[@"options"];
+  if([raw[@"kind"] isEqual:@"pattern"])return [self publishSoundSequence:options restart:NO replacement:YES];
+  if(![raw[@"kind"] isEqual:@"repeat"])return @NO;
+  uint32_t identifier=ToneIdentifier(options);
+  if(!identifier||!toneOptions[@(identifier)])return @NO;
+  NSMutableDictionary *revision=[options mutableCopy];[revision removeObjectForKey:@"toneId"];
+  return [self publishRepeatingTone:revision identifier:identifier];
+ }
+}
+- (void)invalidateSoundControls
+{
+ soundGeneration++;[self fireEvent:@"_soundinvalidate" withObject:@{@"generation":@(soundGeneration)}];
+}
 - (NSNumber *)setVolume:(id)args
 {
   @synchronized(self) {
   if (audioEngine == nil) { __atomic_fetch_add(&statsRejected[1],1,__ATOMIC_RELAXED); return @NO; }
 
   id raw=[args isKindOfClass:[NSArray class]] && [args count]==1 ? args[0] : args;
+  if([raw isKindOfClass:[NSNumber class]]&&CFGetTypeID((__bridge CFTypeRef)raw)!=CFBooleanGetTypeID())raw=@{@"volume":raw};
   if(![raw isKindOfClass:[NSDictionary class]]) { __atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED); return @NO; }
   NSDictionary *options=raw;
   if (![self acceptValidation:[TiSynthengineContract validateSetVolume:options]
@@ -1812,6 +1926,7 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 - (NSNumber *)setTempo:(id)args
 {
  @synchronized(self) {id raw=[args isKindOfClass:[NSArray class]]&&[args count]==1?args[0]:args;
+  if([raw isKindOfClass:[NSNumber class]]&&CFGetTypeID((__bridge CFTypeRef)raw)!=CFBooleanGetTypeID())raw=@{@"bpm":raw};
   if(!sequence||!audioEngine||![raw isKindOfClass:[NSDictionary class]]||[raw count]!=1)return @NO;
   double bpm;id value=raw[@"bpm"];if(![value isKindOfClass:[NSNumber class]]||CFGetTypeID((__bridge CFTypeRef)value)==CFBooleanGetTypeID()||!ParseFiniteDoubleFromAny(value,&bpm)||bpm<20||bpm>300)return @NO;
   return @(synth_transport_set_tempo(sequence,bpm));}
@@ -1819,6 +1934,10 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 - (NSNumber *)playSequence:(id)args {return [self publishSequence:args restart:YES];}
 - (NSNumber *)updateSequence:(id)args {return [self publishSequence:args restart:NO];}
 - (NSNumber *)publishSequence:(id)args restart:(BOOL)restart
+{
+ return [self publishSoundSequence:args restart:restart replacement:NO];
+}
+- (NSNumber *)publishSoundSequence:(id)args restart:(BOOL)restart replacement:(BOOL)replacement
 {
  @synchronized(self) {
   if(!audioEngine||!sequence)return restart?@0:@NO;
@@ -1832,9 +1951,9 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
   }
   NSMutableDictionary *changes=[raw mutableCopy];if(!restart)[changes removeObjectForKey:@"sequenceId"];
   NSDictionary *previous=sequenceOptions[@(identifier)];
-  if(!restart&&changes[@"timeUnit"]&&![changes[@"timeUnit"] isEqual:previous[@"timeUnit"]?:@"beats"])return @NO;
-  NSMutableDictionary *merged=restart?[NSMutableDictionary dictionary]:[previous mutableCopy];[merged addEntriesFromDictionary:changes];
-  if(!restart&&[changes[@"voice"] isKindOfClass:[NSDictionary class]])merged[@"voice"]=[TiSynthengineContract mergeSequenceVoice:previous[@"voice"]?:@{} changes:changes[@"voice"]];
+  if(!restart&&(replacement||changes[@"timeUnit"])&&![(changes[@"timeUnit"]?:@"beats") isEqual:(previous[@"timeUnit"]?:@"beats")])return @NO;
+  NSMutableDictionary *merged=restart||replacement?[NSMutableDictionary dictionary]:[previous mutableCopy];[merged addEntriesFromDictionary:changes];
+  if(!restart&&!replacement&&[changes[@"voice"] isKindOfClass:[NSDictionary class]])merged[@"voice"]=[TiSynthengineContract mergeSequenceVoice:previous[@"voice"]?:@{} changes:changes[@"voice"]];
   SynthSequenceConfig *bank=synth_transport_begin_write_full(sequence,identifier,restart);
   if(!bank){__atomic_fetch_add(&statsRejected[2],1,__ATOMIC_RELAXED);__atomic_fetch_add(&rejectedPublications,1,__ATOMIC_RELAXED);return restart?@0:@NO;}
   NSDictionary *failure=[TiSynthengineContract prepareSequence:merged config:bank maxFrequency:[self maxFrequencyHz]];
@@ -1982,7 +2101,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
     id raw=[args isKindOfClass:[NSArray class]] && [args count]==1 ? args[0] : args;
     if(![raw isKindOfClass:[NSDictionary class]]){__atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED);return @NO;}
     if(![self acceptValidation:[TiSynthengineContract validateNoteOn:raw maxFrequency:[self maxFrequencyHz]] method:@"noteOn"])return @NO;
-    return [self publishTone:raw voiceId:[raw[@"voiceId"] intValue]];
+    int32_t identifier=[self heldIdentifier:[raw[@"voiceId"] intValue]];
+    return identifier?[self publishTone:raw voiceId:identifier]:@NO;
   }
 }
 
@@ -1993,7 +2113,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
     id raw=[args isKindOfClass:[NSArray class]] && [args count]==1 ? args[0] : args;
     if(![raw isKindOfClass:[NSDictionary class]]){__atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED);return @NO;}
     if(![self acceptValidation:[TiSynthengineContract validateNoteOff:raw] method:@"noteOff"])return @NO;
-    SynthCommand cmd; memset(&cmd,0,sizeof(cmd));cmd.type=SYNTH_CMD_HELD_OFF;cmd.voiceId=[raw[@"voiceId"] intValue];cmd.voiceGeneration=[voiceGenerations[@(cmd.voiceId)] unsignedLongLongValue];
+    int32_t identifier=[self heldIdentifier:[raw[@"voiceId"] intValue]];if(!identifier)return @NO;
+    SynthCommand cmd; memset(&cmd,0,sizeof(cmd));cmd.type=SYNTH_CMD_HELD_OFF;cmd.voiceId=identifier;cmd.voiceGeneration=[voiceGenerations[@(cmd.voiceId)] unsignedLongLongValue];
     BOOL full=[self enqueueCommand:cmd];if(full)__atomic_fetch_add(&statsRejected[2],1,__ATOMIC_RELAXED);
     return full ? @NO : @YES;
   }
@@ -2007,6 +2128,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
     id raw=[args isKindOfClass:[NSArray class]] && [args count]==1 ? args[0] : args;
     if(![raw isKindOfClass:[NSDictionary class]]){__atomic_fetch_add(&statsRejected[0],1,__ATOMIC_RELAXED);return @NO;}
     if(![self acceptValidation:[TiSynthengineContract validateUpdateVoice:raw maxFrequency:[self maxFrequencyHz]] method:@"updateVoice"])return @NO;
+    int32_t identifier=[self heldIdentifier:[raw[@"voiceId"] intValue]];if(!identifier)return @NO;
+    NSMutableDictionary *mapped=[raw mutableCopy];mapped[@"voiceId"]=@(identifier);raw=mapped;
     NSNumber *spatialMode=voiceSpatialModes[raw[@"voiceId"]];
     if(spatialMode&&(([spatialMode boolValue]&&raw[@"pan"])||(![spatialMode boolValue]&&(raw[@"spatialX"]||raw[@"spatialY"]))))return @NO;
     NSArray *keys=@[@"frequency",@"volume",@"filterHz",@"filterQ",@"lfoFreq",@"lfoDepth",@"pulseWidth",@"fmRatio",@"fmDepth",@"noiseRate",@"lowPassHz",@"pan"];
@@ -2329,6 +2452,7 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 {
   @synchronized(self) {
 #pragma unused(args)
+  [self invalidateSoundControls];
   if (audioEngine == nil) return;
   synth_tone_stop_all(&tones);[toneOptions removeAllObjects];
   BOOL dropped = [self enqueueSimpleCommand:CMD_STOP_ALL];
@@ -2343,6 +2467,8 @@ static uint32_t ToneIdentifier(NSDictionary *options) {
 {
   @synchronized(self) {
 #pragma unused(args)
+  [self invalidateSoundControls];
+  [legacyHeldIds removeAllObjects];[claimedHeldIds removeAllObjects];
   synth_tone_stop_all(&tones);[toneOptions removeAllObjects];
   if (audioEngine == nil) return;
 

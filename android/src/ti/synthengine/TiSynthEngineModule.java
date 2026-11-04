@@ -38,6 +38,124 @@ public class TiSynthEngineModule extends KrollModule {
     private static final int SEQUENCE_MAX_STEPS = SynthContract.MAX_SEQUENCE_STEPS;
 
     private volatile SynthThread synthThread;
+    // Public legacy IDs and Sound-owned IDs share no render identity.
+    private long soundGeneration = 1;
+    private long nextSoundNote = Integer.MAX_VALUE;
+    private boolean soundHeldCall;
+    private final java.util.Map<Integer,Integer> legacyHeldIds = new java.util.HashMap<>();
+    private final java.util.Set<Integer> claimedHeldIds = new java.util.HashSet<>();
+
+    private void pruneHeldAliases() {
+        if(legacyHeldIds.isEmpty())return;
+        java.util.Iterator<java.util.Map.Entry<Integer,Integer>> entries=legacyHeldIds.entrySet().iterator();
+        while(entries.hasNext()) {
+            java.util.Map.Entry<Integer,Integer> entry=entries.next();
+            if(synthThread==null||synthThread.voiceMask(entry.getValue())<0) {
+                claimedHeldIds.remove(entry.getValue());entries.remove();
+            }
+        }
+    }
+    private int heldIdentifier(int publicId) {
+        if(soundHeldCall)return publicId;
+        pruneHeldAliases();
+        Integer known=legacyHeldIds.get(publicId);if(known!=null)return known;
+        // Ordinary legacy IDs keep their identity and allocate no bookkeeping.
+        if(publicId<=nextSoundNote)return publicId;
+        int identifier=_allocateSoundNote();
+        if(identifier==0)return 0;
+        claimedHeldIds.add(identifier);legacyHeldIds.put(publicId,identifier);return identifier;
+    }
+    @Kroll.method public synchronized int _allocateSoundNote() {
+        pruneHeldAliases();
+        while(nextSoundNote>0&&(claimedHeldIds.contains((int)nextSoundNote)||
+                (synthThread!=null&&synthThread.voiceMask((int)nextSoundNote)>=0))) {
+            // A live legacy voice occupied this ID before the watermark passed.
+            int skipped=(int)nextSoundNote--;
+            legacyHeldIds.put(skipped,skipped);claimedHeldIds.add(skipped);
+        }
+        if(nextSoundNote<=0)return 0;
+        return (int)nextSoundNote--;
+    }
+    @Kroll.method public synchronized KrollDict _soundRuntime() {
+        KrollDict result=new KrollDict();result.put("generation",soundGeneration);result.put("running",synthThread!=null);return result;
+    }
+    @Kroll.method public synchronized int _soundNoteToMidi(String note) {
+        double frequency=parseNoteToFrequency(note);if(frequency<=0)return -1;
+        return (int)Math.round(69+12*Math.log(frequency/440)/Math.log(2));
+    }
+    @Kroll.method public synchronized boolean _soundHeld(KrollDict request) {
+        if(request==null||!(request.get("options") instanceof java.util.Map))return false;
+        KrollDict options=optionDictionary(request.get("options"),null);
+        Object id=options.get("voiceId");
+        if(!(id instanceof Number)||((Number)id).doubleValue()<=nextSoundNote||((Number)id).doubleValue()>Integer.MAX_VALUE||claimedHeldIds.contains(((Number)id).intValue()))return false;
+        soundHeldCall=true;
+        try {
+            if("on".equals(request.get("operation")))return noteOn(options);
+            if("update".equals(request.get("operation")))return updateNote(options);
+            if("off".equals(request.get("operation")))return noteOff(options);
+            return false;
+        } finally {soundHeldCall=false;}
+    }
+    @SuppressWarnings("unchecked")
+    private KrollDict optionDictionary(Object raw,String scalar) {
+        if(raw instanceof java.util.Map)return new KrollDict(new java.util.HashMap<>((java.util.Map<String,Object>)raw));
+        if(scalar!=null&&raw instanceof Number){KrollDict result=new KrollDict();result.put(scalar,raw);return result;}
+        return null;
+    }
+    @Kroll.method public synchronized KrollDict _validateSoundOptions(KrollDict request) {
+        KrollDict error=new KrollDict();
+        try {
+            if(request==null)throw new IllegalArgumentException("request");
+            KrollDict options=optionDictionary(request.get("options"),null);
+            if(options==null)throw new IllegalArgumentException("options");
+            String kind=String.valueOf(request.get("kind"));SynthContract.Validation result;
+            switch(kind) {
+                case "tone":result=SynthContract.validateTone(options,maxFrequencyHz());break;
+                case "chord":result=SynthContract.validateChord(options,maxFrequencyHz());break;
+                case "held":result=SynthContract.validateNoteOn(options,maxFrequencyHz());break;
+                case "heldUpdate":result=SynthContract.validateUpdateVoice(options,maxFrequencyHz());break;
+                case "repeat":SynthContract.mergeTone(null,options,maxFrequencyHz());return null;
+                case "pattern":SynthStudioContract.sequence(options,null,true,maxFrequencyHz());return null;
+                case "processing":SynthStudioContract.effects(options,acceptedProcessing);return null;
+                default:throw new IllegalArgumentException("kind");
+            }
+            if(result.accepted)return null;
+            error.put("key",result.key);error.put("reason",result.reason);return error;
+        } catch(IllegalArgumentException|ClassCastException|NullPointerException e) {
+            error.put("key",e.getMessage()==null?"options":e.getMessage());error.put("reason","invalid_configuration");return error;
+        }
+    }
+    // A modern Sound reset supplies its entire private accepted revision.
+    // Historical updateTone/updateSequence continue to merge partial edits.
+    @Kroll.method public synchronized boolean _updateSoundOptions(KrollDict request) {
+        if(synthThread==null)return reject(1);
+        if(request==null||request.size()!=2||!(request.get("kind") instanceof String))return reject(0);
+        KrollDict options=optionDictionary(request.get("options"),null);if(options==null)return reject(0);
+        if("repeat".equals(request.get("kind"))) {
+            int id=toneId(options);if(id==0||!acceptedTones.containsKey(id))return reject(0);
+            KrollDict changes=new KrollDict(new java.util.HashMap<>(options));changes.remove("toneId");
+            final KrollDict recipe;
+            try {recipe=toneRecipe(null,changes);}catch(IllegalArgumentException e){return reject(0);}
+            if(!publishRepeatedTone(id,recipe,false))return false;
+            acceptedTones.put(id,recipe);return true;
+        }
+        if("pattern".equals(request.get("kind"))) {
+            int id=sequenceId(options);SynthStudioContract.Sequence old=acceptedSequences.get(id);
+            if(id==0||old==null||synthThread.sequenceState(id)==null)return reject(0);
+            java.util.Map<String,Object> changes=new java.util.HashMap<>(options);changes.remove("sequenceId");
+            final SynthStudioContract.Sequence next;
+            try {
+                next=SynthStudioContract.sequence(changes,null,true,maxFrequencyHz());
+                if(!next.options.getOrDefault("timeUnit","beats").equals(old.options.getOrDefault("timeUnit","beats")))return reject(0);
+            }catch(IllegalArgumentException e){return reject(0);}
+            if(!synthThread.publishSequence(id,next.packet,false)){rejectedPublications.incrementAndGet();return reject(2);}
+            acceptedSequences.put(id,next.acceptedState());return true;
+        }
+        return reject(0);
+    }
+    private void invalidateSoundControls() {
+        soundGeneration++;KrollDict event=new KrollDict();event.put("generation",soundGeneration);fireEvent("_soundinvalidate",event);
+    }
     private boolean statsEnabled;
     private final java.util.concurrent.atomic.AtomicLong rejectedPublications=new java.util.concurrent.atomic.AtomicLong();
     private double[] lastStats = emptyStats();
@@ -226,7 +344,7 @@ public class TiSynthEngineModule extends KrollModule {
         capabilities.put("variation",true);
         result.put("variationSchemaVersion",1);
         result.put("capabilities",capabilities);
-        result.put("apiVersion", SynthContract.API_VERSION);
+        result.put("version", SynthContract.MODULE_VERSION);
         result.put("defaults", defaults);
         result.put("limits", limits);
         result.put("mixingProfiles", new Object[]{"conservative", "raw", "balanced", "speakerSafe"});
@@ -261,8 +379,10 @@ public class TiSynthEngineModule extends KrollModule {
     }
 
     @Kroll.method
-    public synchronized boolean setVolume(KrollDict options) {
+    public synchronized boolean setVolume(Object raw) {
         if (synthThread == null) return reject(1);
+        KrollDict options=optionDictionary(raw,"volume");
+        if(raw!=null&&options==null)return reject(0);
         if (!acceptValidation("setVolume", SynthContract.validateSetVolume(options))) return false;
         double volume = readOptionalDoubleOption(options, "setVolume", "volume",
                 1.0, VOLUME_MIN, VOLUME_MAX);
@@ -319,14 +439,17 @@ public class TiSynthEngineModule extends KrollModule {
     public synchronized boolean noteOn(KrollDict options) {
         if(synthThread==null)return reject(1);
         if(!acceptValidation("noteOn",SynthContract.validateNoteOn(options,maxFrequencyHz())))return false;
-        return publishTone(options,((Number)options.get("voiceId")).intValue());
+        int identifier=heldIdentifier(((Number)options.get("voiceId")).intValue());
+        return identifier!=0&&publishTone(options,identifier);
     }
 
     @Kroll.method
     public synchronized boolean noteOff(KrollDict options) {
         if(synthThread==null)return reject(1);
         if(!acceptValidation("noteOff",SynthContract.validateNoteOff(options)))return false;
-        boolean full=synthThread.voiceCommand(5,((Number)options.get("voiceId")).intValue(),0,null);
+        int identifier=heldIdentifier(((Number)options.get("voiceId")).intValue());
+        if(identifier==0)return reject(2);
+        boolean full=synthThread.voiceCommand(5,identifier,0,null);
         if(full)reject(2); return !full;
     }
 
@@ -343,7 +466,8 @@ public class TiSynthEngineModule extends KrollModule {
         double[] values=new double[keys.length]; int mask=0;
         for(int i=0;i<keys.length;i++)if(containsKey(options,keys[i])) {mask|=1<<i; values[i]=((Number)options.get(keys[i])).doubleValue();}
         if(containsKey(options,"note")){mask|=1;values[0]=parseNoteToFrequency((String)options.get("note"));}
-        int id=((Number)options.get("voiceId")).intValue(), allowed=synthThread.voiceMask(id);
+        int id=heldIdentifier(((Number)options.get("voiceId")).intValue());if(id==0)return reject(2);
+        int allowed=synthThread.voiceMask(id);
         if(allowed>=0&&(containsKey(options,"spatialX")||containsKey(options,"spatialY"))&&(allowed&(1<<16))==0)return reject(0);
         if(allowed>=0 && (mask & ~allowed)!=0)return acceptValidation("updateVoice",SynthContract.Validation.rejected("changes","incompatible_voice_source",options));
         if(options.containsKey("modulations"))try {
@@ -577,8 +701,9 @@ public class TiSynthEngineModule extends KrollModule {
         int id=sequenceId(options);if(id==0||options.size()!=1)return reject(0);
         return synthThread.stopSequence(id);
     }
-    @Kroll.method public synchronized boolean setTempo(KrollDict options) {
+    @Kroll.method public synchronized boolean setTempo(Object raw) {
         if(synthThread==null)return reject(1);
+        KrollDict options=optionDictionary(raw,"bpm");
         try {if(options==null)return reject(0);SynthStudioContract.keys(options,"bpm");
             if(!options.containsKey("bpm"))return reject(0);
             return synthThread.setTempo(SynthStudioContract.number(options,"bpm",120,20,300));
@@ -593,6 +718,7 @@ public class TiSynthEngineModule extends KrollModule {
 
     @Kroll.method
     public synchronized void stopAll() {
+        invalidateSoundControls();
         acceptedTones.clear();
         if (synthThread == null) return;
         boolean dropped = synthThread.requestStopAll();
@@ -603,6 +729,8 @@ public class TiSynthEngineModule extends KrollModule {
 
     @Kroll.method
     public synchronized void shutdown() {
+        invalidateSoundControls();
+        legacyHeldIds.clear();claimedHeldIds.clear();
         acceptedTones.clear();
         cancelSequencePoll();
         if (synthThread == null) return;

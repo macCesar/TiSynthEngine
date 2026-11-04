@@ -2,6 +2,17 @@
 
 @interface TiSynthengineModule : TiModule
 
+// Return the shared JS export before Titanium's automatic create* factory.
+- (id)createSound;
+
+// Internal entry-layer hooks; public Sound methods are shared CommonJS assets.
+- (NSDictionary *)_soundRuntime:(id)args;
+- (NSDictionary *)_validateSoundOptions:(id)args;
+- (NSNumber *)_soundNoteToMidi:(id)args;
+- (NSNumber *)_allocateSoundNote:(id)args;
+- (NSNumber *)_soundHeld:(id)args;
+- (NSNumber *)_updateSoundOptions:(id)args;
+
 - (NSDictionary *)getStats:(id)args;
 - (NSNumber *)enableStats:(id)args;
 - (NSNumber *)disableStats:(id)args;

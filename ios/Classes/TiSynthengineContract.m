@@ -627,7 +627,7 @@ static NSDictionary *ValidateVariation(NSDictionary *options,double frequency,do
 + (NSDictionary *)defaultsWithMaxFrequency:(double)maxFrequency
 {
   return @{
-    @"apiVersion": @"1.1.0",
+    @"version": @"2.0.0",
     @"capabilities": @{@"variation":@YES,@"toneRepetition":@YES},
     @"variationSchemaVersion":@1,
     @"defaults": @{

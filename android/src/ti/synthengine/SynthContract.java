@@ -10,7 +10,7 @@ import java.util.Map;
  */
 final class SynthContract {
 
-    static final String API_VERSION = "1.1.0";
+    static final String MODULE_VERSION = "2.0.0";
 
     static final int DEFAULT_MAX_VOICES = 8;
     static final String DEFAULT_MIXING_PROFILE = "conservative";
