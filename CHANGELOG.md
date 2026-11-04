@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased: 2.0.0
+## [2.0.0] - 2026-11-03
 
 - Add reusable `createSound({sound, playback})` definitions with temporary playback overrides, atomic validated revisions and owned held, repetition and pattern controls.
 - Invalidate controls across engine shutdown generations and retire native held-ID aliases without changing existing playback signatures or DSP algorithms.
@@ -9,13 +9,13 @@
 - Record within-platform acoustic equivalence, native boundary checks and bounded performance/memory evidence, including unresolved limits.
 
 
-## Unreleased: local 1.1.0 candidates
+## [1.1.0] - 2026-11-02
 
 - Add optional native per-attack parameter ranges on timed tones, atomic chords, held notes and native sequence attacks, with shared deterministic selection, strict validation and an independent stream from oscillator noise.
 - Keep selected values through sustain and release. Sequence loops select again; same-seed revisions retain their counter and changed seeds restart it when applied.
 - Advertise `capabilities.variation` and `variationSchemaVersion: 1` on both platforms while retaining `apiVersion: '1.0.0'`.
 - Preserve absent/amount-zero rendering and existing event gains, chord compensation, transport cadence and routes. See [contract and verification](documentation/native-variation.md).
-- Produce local Android/iOS module packages 1.1.0 alongside the published 1.0.2 packages. No release or tag is created by this work.
+- Publish matching Android and iOS module packages 1.1.0.
 
 ## [1.0.2] - 2026-10-29
 
